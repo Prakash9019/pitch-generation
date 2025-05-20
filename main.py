@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 
-from auth import router as auth_router, get_current_user, get_credentials
+from auth_new import router as auth_router, get_current_user, get_credentials, verify_api_key
 from slides_manager import SlidesManager
 from ai_content_generator import AIContentGenerator
 
@@ -55,6 +55,7 @@ class ContentGenerationResponse(BaseModel):
     errors: Optional[List[str]] = None
     presentation_id: Optional[str] = None
     presentation_url: Optional[str] = None
+    presentation_view_url: Optional[str] = None
 
 @app.get("/")
 async def root():
@@ -65,17 +66,17 @@ async def protected_route(user_id: str = Depends(get_current_user)):
     """Example protected route that requires authentication"""
     return {"message": f"Authenticated as {user_id}"}
 
+# Public endpoints that use application credentials
 @app.get("/templates", response_model=List[TemplateResponse])
-async def get_templates(folder_name: str = "Templates", user_id: str = Depends(get_current_user)):
-    """Get available presentation templates from Google Drive"""
+async def get_templates(folder_name: str = "Templates"):
+    """Get available presentation templates from Google Drive (public endpoint)"""
     try:
-        # Get user credentials from the auth system
-        credentials = get_credentials(user_id)
-        
-        # Initialize slides manager with user credentials
+        # Use application credentials for listing templates
+        credentials = get_credentials(None)
         slides_manager = SlidesManager(credentials=credentials)
         
-        templates = slides_manager.list_templates(folder_name)
+        templates = slides_manager.list_templates(folder_name=folder_name)
+        
         return [TemplateResponse(
             id=template.get("id"),
             name=template.get("name"),
@@ -85,13 +86,13 @@ async def get_templates(folder_name: str = "Templates", user_id: str = Depends(g
         raise HTTPException(status_code=500, detail=f"Failed to fetch templates: {str(e)}")
 
 @app.get("/templates/{template_id}/placeholders", response_model=List[PlaceholderResponse])
-async def get_template_placeholders(template_id: str, user_id: str = Depends(get_current_user)):
+async def get_template_placeholders(template_id: str):
     """Get all placeholders from a template presentation with their instructions"""
     try:
-        # Get user credentials from the auth system
-        credentials = get_credentials(user_id)
+        # Use application credentials
+        credentials = get_credentials(None)
         
-        # Initialize slides manager with user credentials
+        # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
         placeholders = slides_manager.get_template_placeholders(template_id)
@@ -99,20 +100,18 @@ async def get_template_placeholders(template_id: str, user_id: str = Depends(get
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch placeholders: {str(e)}")
 
+# Public endpoint for content generation
 @app.post("/generate-content", response_model=ContentGenerationResponse)
-async def generate_content(
-    request: ContentGenerationRequest,
-    user_id: str = Depends(get_current_user)
-):
+async def generate_content(request: ContentGenerationRequest):
     """Generate content for placeholders based on a prompt and template ID"""
     if not ai_generator:
         raise HTTPException(status_code=500, detail="AI generator not initialized. Check GOOGLE_API_KEY environment variable.")
     
     try:
-        # Get user credentials from the auth system
-        credentials = get_credentials(user_id)
+        # Use application credentials
+        credentials = get_credentials(None)
         
-        # Initialize slides manager with user credentials
+        # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
         # Get placeholders from the template
@@ -143,19 +142,20 @@ async def generate_content(
             result["results"]
         )
         
-        # Get the URL for the generated presentation
-        presentation_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/edit"
+        # Get the URLs for the generated presentation
+        presentation_edit_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/edit"
+        presentation_view_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/view"
         
-        # Add the presentation ID and URL to the response
+        # Add the presentation ID and URLs to the response
         result["presentation_id"] = generated_presentation_id
-        result["presentation_url"] = presentation_url
+        result["presentation_url"] = presentation_edit_url
+        result["presentation_view_url"] = presentation_view_url
             
         return ContentGenerationResponse(**result)
     except Exception as e:
         import traceback
         error_detail = f"Failed to generate content: {str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=error_detail)
-
 @app.get("/templates/{template_id}/comments", response_model=List[Dict[str, Any]])
 async def get_template_comments(template_id: str, user_id: str = Depends(get_current_user)):
     """Get all comments from a template presentation for debugging"""
@@ -178,6 +178,46 @@ async def get_template_comments(template_id: str, user_id: str = Depends(get_cur
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch comments: {str(e)}")
 
+@app.get("/outputs", response_model=List[TemplateResponse])
+async def get_outputs(user_id: str = Depends(get_current_user)):
+    """Get generated presentations from the Output folder"""
+    try:
+        # Get user credentials from the auth system
+        credentials = get_credentials(user_id)
+        
+        # Initialize slides manager with user credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # List presentations in the Output folder
+        outputs = slides_manager.list_templates(folder_name="Output")
+        
+        return [TemplateResponse(
+            id=output.get("id"),
+            name=output.get("name"),
+            thumbnailLink=output.get("thumbnailLink")
+        ) for output in outputs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch outputs: {str(e)}")
+
+@app.delete("/outputs/{presentation_id}")
+async def delete_output(presentation_id: str, user_id: str = Depends(get_current_user)):
+    """Delete a generated presentation"""
+    try:
+        # Get user credentials from the auth system
+        credentials = get_credentials(user_id)
+        
+        # Initialize slides manager with user credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Delete the presentation
+        success = slides_manager.delete_presentation(presentation_id)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to delete presentation")
+        
+        return {"message": "Presentation deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete presentation: {str(e)}")
 
 
 

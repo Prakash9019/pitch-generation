@@ -129,12 +129,30 @@ class SlidesManager:
         """
         # First, create a copy of the template
         copy_title = f"Generated Presentation - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        # Create or find the Output folder
+        output_folder_id = self._get_or_create_output_folder()
+        
+        # Copy the template to the Output folder
         copied_file = self.drive_service.files().copy(
             fileId=presentation_id,
-            body={"name": copy_title}
+            body={
+                "name": copy_title,
+                "parents": [output_folder_id]  # Place in Output folder
+            }
         ).execute()
         
-        copied_id = copied_file.get('id')
+        copied_presentation_id = copied_file['id']
+        
+        # Make the presentation accessible to anyone with the link with editor permissions
+        self.drive_service.permissions().create(
+            fileId=copied_presentation_id,
+            body={
+                'type': 'anyone',
+                'role': 'writer',  # Changed from 'reader' to 'writer'
+                'allowFileDiscovery': False
+            }
+        ).execute()
         
         # Prepare the requests for batch update
         requests = []
@@ -155,8 +173,61 @@ class SlidesManager:
         # Execute the batch update
         if requests:
             self.slides_service.presentations().batchUpdate(
-                presentationId=copied_id,
+                presentationId=copied_presentation_id,  # Fixed: changed copied_id to copied_presentation_id
                 body={'requests': requests}
             ).execute()
         
-        return copied_id
+        return copied_presentation_id  # Return the ID of the copied presentation
+
+    def _get_or_create_output_folder(self) -> str:
+        """
+        Get or create an Output folder in Google Drive
+        
+        Returns:
+            ID of the Output folder
+        """
+        # Search for existing Output folder
+        folder_query = "name='Output' and mimeType='application/vnd.google-apps.folder'"
+        folder_results = self.drive_service.files().list(
+            q=folder_query, spaces='drive', fields='files(id, name)'
+        ).execute()
+        
+        folders = folder_results.get('files', [])
+        
+        # If Output folder exists, return its ID
+        if folders:
+            return folders[0]['id']
+        
+        # Otherwise, create a new Output folder
+        folder_metadata = {
+            'name': 'Output',
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        
+        folder = self.drive_service.files().create(
+            body=folder_metadata,
+            fields='id'
+        ).execute()
+        
+        return folder.get('id')
+
+    def delete_presentation(self, presentation_id: str) -> bool:
+        """
+        Delete a presentation from Google Drive
+        
+        Args:
+            presentation_id: ID of the presentation to delete
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.drive_service.files().delete(fileId=presentation_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting presentation: {str(e)}")
+            return False
+
+
+
+
