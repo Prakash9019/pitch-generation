@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
+from googleapiclient.discovery import build
 
 from auth_new import router as auth_router, get_current_user, get_credentials, verify_api_key
 from slides_manager import SlidesManager
@@ -228,4 +229,4 @@ async def delete_output(presentation_id: str, user_id: str = Depends(get_current
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8080)
+    uvicorn.run("main:app", host="127.0.0.1", port=8080,reload=True)
