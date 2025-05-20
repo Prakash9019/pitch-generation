@@ -54,4 +54,4 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Command to run the application with multiple workers
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]

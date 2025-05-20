@@ -9,6 +9,11 @@ from auth_new import router as auth_router, get_current_user, get_credentials, v
 from slides_manager import SlidesManager
 from ai_content_generator import AIContentGenerator
 
+import uvicorn
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(title="AI Pitchdeck Content Generator")
 
@@ -222,10 +227,5 @@ async def delete_output(presentation_id: str, user_id: str = Depends(get_current
 
 
 
-
-
-
-
-
-
-
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="127.0.0.1", port=8080)
