@@ -19,9 +19,16 @@ load_dotenv()
 app = FastAPI(title="AI Pitchdeck Content Generator")
 
 # Add CORS middleware
+origins = [
+    "http://localhost:3000",    # Local development server
+    "http://localhost:5173",    # Vite development server
+    "https://app.govertx.com",
+    "https://vertx-flow-fe.vercel.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your frontend domain
+    allow_origins=origins,  # Use the specific origins list instead of "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
