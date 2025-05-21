@@ -12,9 +12,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver  # Using the specific import path
 from pydantic import BaseModel, Field
 
 from placeholder_selector import Placeholder, PlaceholderGroup, PlaceholderSelector
+
+
 
 # Configure Google Generative AI
 api_key = os.environ.get("GOOGLE_API_KEY")
@@ -83,37 +86,55 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                 else:
                     word_count_text = "an appropriate number of words"
                 
-                # Create a prompt specifically for this placeholder
+                # Get the instruction for this placeholder
                 instruction = placeholder.instruction or "Provide content for this placeholder"
                 
-                # Enhanced system message with more explicit instructions about visual consequences
+                # Extract example from instruction if available
+                example = None
+                if instruction and '"' in instruction:
+                    # Extract text between quotes as example
+                    import re
+                    quoted_text = re.findall(r'"([^"]*)"', instruction)
+                    if quoted_text:
+                        example = quoted_text[0]
+                
+                # Enhanced system message with more explicit instructions
                 system_message = (
                     "You are an expert pitch deck creator specializing in professional business presentations.\n"
                     f"Your task is to generate content for a placeholder using {word_count_text}.\n"
-                    "CRITICAL: The EXACT word count is the most important requirement - more important than any other aspect.\n\n"
+                    "CRITICAL REQUIREMENTS (in order of importance):\n"
+                    "1. FOLLOW THE EXACT FORMAT OF THE EXAMPLE if one is provided\n"
+                    "2. MEET THE EXACT WORD COUNT REQUIREMENT\n"
+                    "3. FOLLOW THE SPECIFIC INSTRUCTION FOR THIS PLACEHOLDER\n\n"
                     f"VISUAL CONSEQUENCES: If you provide fewer words than required, the slide will look empty with awkward white space.\n"
                     f"If you exceed the maximum word count, text will overflow and be cut off, making the presentation look unprofessional.\n\n"
                     "Count words carefully - each word separated by spaces counts as one word.\n"
                     "Examples: 'We are' is 2 words. 'State-of-the-art' is 4 words.\n"
-                    "Your performance will be evaluated primarily on meeting the word count requirement."
+                    "Your performance will be evaluated primarily on following the example format and meeting the word count requirement."
                 )
                 
-                # Enhanced human message with examples of properly expanded content
+                # Enhanced human message with emphasis on following the example
                 human_message = (
                     f"Generate content for the placeholder: {placeholder.name}\n"
-                    f"This placeholder appears on slide {placeholder.slide_index}.\n"
-                    f"Instruction: {instruction}\n"
+                    f"This placeholder appears on slide {placeholder.slide_index}.\n\n"
+                )
+                
+                # Add instruction with clear formatting
+                human_message += f"INSTRUCTION: {instruction}\n\n"
+                
+                # Add example with clear formatting if available
+                if example:
+                    human_message += f"EXAMPLE FORMAT TO FOLLOW: \"{example}\"\n\n"
+                    human_message += (
+                        f"Your content MUST follow the EXACT SAME STYLE, TONE, AND FORMAT as this example.\n"
+                        f"Study the example carefully - notice its structure, language style, and formatting.\n"
+                        f"Your response should look like it belongs in the same document as the example.\n\n"
+                    )
+                
+                # Add context and requirements
+                human_message += (
                     f"Context: {state.prompt}\n\n"
-                    f"CRITICAL: Your response must contain {word_count_text}. This text will appear on a professional pitch deck viewed by potential investors.\n\n"
-                    "EXAMPLES OF PROPERLY EXPANDED CONTENT:\n"
-                    "Basic (15 words): Our company offers innovative solutions for businesses seeking to improve their digital transformation processes.\n\n"
-                    "Expanded (25 words): Our award-winning company delivers cutting-edge, customizable solutions for forward-thinking businesses actively seeking to accelerate and improve their comprehensive digital transformation processes.\n\n"
-                    "Further Expanded (35 words): Our award-winning company consistently delivers cutting-edge, highly customizable solutions for forward-thinking businesses actively seeking to accelerate, streamline, and fundamentally improve their comprehensive digital transformation processes across multiple departments and operational functions.\n\n"
-                    "SPECIFIC EXPANSION TECHNIQUES:\n"
-                    "1. Add descriptive adjectives before nouns: 'solutions' → 'innovative, scalable solutions'\n"
-                    "2. Include benefits: 'We offer services' → 'We offer comprehensive services that increase efficiency'\n"
-                    "3. Add context: 'market trends' → 'market trends in today's rapidly evolving business landscape'\n"
-                    "4. Specify details: 'technology' → 'cloud-based AI technology with machine learning capabilities'\n\n"
+                    f"CRITICAL: Your response must contain {word_count_text}.\n"
                     "WORD COUNT VERIFICATION INSTRUCTIONS:\n"
                     "- After writing your response, count the words manually by counting each space-separated term\n"
                     "- If below the requirement, add more descriptive details until you reach the exact count\n"
@@ -148,24 +169,52 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                 retry_count = 0
                 previous_content = content  # Store the previous content for each retry
 
-                while target_count and abs(word_count - target_count) > 5 and retry_count < max_retries:
+                while target_count and abs(word_count - target_count) > 2 and retry_count < max_retries:
                     # Calculate exactly how many words to add or remove
                     word_difference = target_count - word_count
-                    action_text = f"add {word_difference} more words" if word_difference > 0 else f"remove {abs(word_difference)} words"
+                    is_adding = word_difference > 0
+                    action_text = f"add {word_difference} more words" if is_adding else f"remove {abs(word_difference)} words"
                     
                     # Create a more specific prompt for the retry with clear instructions
                     retry_message = (
                         f"Your previous response had {word_count} words, but I need EXACTLY {target_count} words.\n"
                         f"Previous content: \"{previous_content}\"\n\n"
+                    )
+                    
+                    # Add example with clear formatting if available
+                    if example:
+                        retry_message += f"EXAMPLE FORMAT TO FOLLOW: \"{example}\"\n\n"
+                        retry_message += f"Your content MUST follow the EXACT SAME STYLE, TONE, AND FORMAT as this example.\n\n"
+                    
+                    # Customize instructions based on whether we're adding or removing words
+                    if is_adding:
+                        strategy_text = (
+                            f"To add {word_difference} words while preserving meaning:\n"
+                            "1. Expand descriptions with relevant adjectives and adverbs\n"
+                            "2. Add supporting details or examples that reinforce the main points\n"
+                            "3. Break complex sentences into multiple simpler sentences\n"
+                            "4. Add context or background information that enhances understanding\n"
+                        )
+                    else:
+                        strategy_text = (
+                            f"To remove {abs(word_difference)} words while preserving meaning:\n"
+                            "1. Remove redundant phrases and unnecessary modifiers\n"
+                            "2. Replace verbose phrases with concise alternatives\n"
+                            "3. Combine sentences that express related ideas\n"
+                            "4. Focus on the most important points and remove less critical details\n"
+                            "5. Prioritize keeping key terminology and main arguments intact\n"
+                        )
+                    
+                    retry_message += (
                         f"Please rewrite this to have EXACTLY {target_count} words by {action_text}.\n"
-                        f"Word count difference: {word_difference} words {'too few' if word_difference > 0 else 'too many'}\n\n"
-                        "Specific instructions:\n"
-                        f"1. {action_text} while preserving the core meaning\n"
-                        f"2. If adding words: Add descriptive adjectives, context details, or supporting points\n"
-                        f"3. If removing words: Remove less important modifiers or redundant phrases\n"
-                        f"4. Ensure the final text is coherent and professionally written\n"
-                        f"5. Count carefully - each space-separated term counts as one word\n\n"
-                        "The word count must be EXACT - this is critical for the slide layout."
+                        f"Word count difference: {word_difference} words {'too few' if is_adding else 'too many'}\n\n"
+                        f"STRATEGY: {strategy_text}\n\n"
+                        "CRITICAL REQUIREMENTS:\n"
+                        "1. MAINTAIN THE CORE MEANING of the original content\n"
+                        f"2. FOLLOW THE EXACT SAME FORMAT as the example if provided\n"
+                        "3. Count carefully - each space-separated term counts as one word\n"
+                        "4. The word count must be EXACTLY {target_count} - this is critical for the slide layout\n\n"
+                        "Provide ONLY the revised content, without any explanations."
                     )
                     
                     retry_prompt = ChatPromptTemplate.from_messages([
@@ -177,6 +226,30 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                     retry_response = retry_prompt | llm | StrOutputParser()
                     content = retry_response.invoke({}).strip()
                     word_count = len(content.split())
+                    
+                    # If we're still far off, try a more aggressive approach on the last retry
+                    if retry_count == max_retries - 1 and abs(word_count - target_count) > 5:
+                        # For removing words, try truncating and fixing
+                        if word_count > target_count:
+                            # Split into words, take exactly the target count, and join
+                            words = content.split()[:target_count]
+                            truncated = " ".join(words)
+                            
+                            # Fix the truncated content to make it coherent
+                            fix_message = (
+                                f"I've truncated the content to exactly {target_count} words, but it may not be coherent:\n"
+                                f"\"{truncated}\"\n\n"
+                                f"Please fix this to make it coherent while keeping EXACTLY {target_count} words and preserving the core meaning."
+                            )
+                            
+                            fix_prompt = ChatPromptTemplate.from_messages([
+                                SystemMessage(content=system_message),
+                                HumanMessage(content=fix_message)
+                            ])
+                            
+                            fix_response = fix_prompt | llm | StrOutputParser()
+                            content = fix_response.invoke({}).strip()
+                            word_count = len(content.split())
                     
                     # Update previous content for the next retry
                     previous_content = content
@@ -206,7 +279,7 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
     return {"generated_content": generated_content, "errors": errors}
 
 def create_pitch_deck_workflow() -> StateGraph:
-    """Create the workflow for generating pitch deck content."""
+    """Create the workflow for generating pitch deck content with memory."""
     # Define the workflow
     workflow = StateGraph(WorkflowState)
     
@@ -221,10 +294,13 @@ def create_pitch_deck_workflow() -> StateGraph:
     # Set the entry point
     workflow.set_entry_point("select_placeholders")
     
-    return workflow.compile()
+    # Add memory checkpointer using the specific import
+    memory = MemorySaver()
+    
+    return workflow.compile(checkpointer=memory)
 
 class AIContentGenerator:
-    """Generates content for pitch deck placeholders."""
+    """Generates content for pitch deck placeholders with LangGraph memory."""
     
     def __init__(self, api_key: str = None):
         """Initialize the content generator."""
@@ -232,19 +308,25 @@ class AIContentGenerator:
             genai.configure(api_key=api_key)
         self.workflow = create_pitch_deck_workflow()
     
-    def generate(self, prompt: str, placeholders: List[Any]) -> Dict[str, Any]:
-        """Generate content for placeholders based on the prompt."""
+    def generate(self, prompt: str, placeholders: List[Any], thread_id: str = None) -> Dict[str, Any]:
+        """Generate content for placeholders based on the prompt with memory."""
         # Initialize the workflow state
         initial_state = WorkflowState(
             prompt=prompt,
             placeholders=placeholders
         )
         
-        # Execute the workflow
-        result = self.workflow.invoke(initial_state)
+        # Create a thread_id if not provided (for conversation persistence)
+        if not thread_id:
+            thread_id = f"thread_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         
-        # Return the results - LangGraph returns an AddableValuesDict, not the state object
+        # Execute the workflow with thread_id for memory persistence
+        config = {"configurable": {"thread_id": thread_id}}
+        result = self.workflow.invoke(initial_state, config)
+        
+        # Return the results
         return {
             "results": result["generated_content"],
-            "errors": result["errors"]
+            "errors": result["errors"],
+            "thread_id": thread_id  # Return thread_id for future calls
         }

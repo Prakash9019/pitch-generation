@@ -63,6 +63,7 @@ class PlaceholderResponse(BaseModel):
 class ContentGenerationRequest(BaseModel):
     prompt: str
     template_id: str
+    thread_id: Optional[str] = None  # Add thread_id as optional parameter
 
 class ContentGenerationResponse(BaseModel):
     results: Dict[str, str]
@@ -82,15 +83,15 @@ async def protected_route(user_id: str = Depends(get_current_user)):
 
 # Public endpoints that use application credentials
 @app.get("/templates", response_model=List[TemplateResponse])
-async def get_templates(folder_name: str = "Templates"):
+def get_templates(folder_name: str = "Templates"):
     """Get available presentation templates from Google Drive (public endpoint)"""
     try:
         # Use application credentials for listing templates
         credentials = get_credentials(None)
         slides_manager = SlidesManager(credentials=credentials)
         
-        # Get templates asynchronously
-        templates = await slides_manager.list_templates_async(folder_name=folder_name)
+        # Get templates
+        templates = slides_manager.list_templates(folder_name=folder_name)
         
         return [TemplateResponse(
             id=template.get("id"),
@@ -101,7 +102,7 @@ async def get_templates(folder_name: str = "Templates"):
         raise HTTPException(status_code=500, detail=f"Failed to fetch templates: {str(e)}")
 
 @app.get("/templates/{template_id}/placeholders", response_model=List[PlaceholderResponse])
-async def get_template_placeholders(template_id: str):
+def get_template_placeholders(template_id: str):
     """Get all placeholders from a template presentation with their instructions"""
     try:
         # Use application credentials
@@ -110,15 +111,15 @@ async def get_template_placeholders(template_id: str):
         # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
-        # Get placeholders asynchronously
-        placeholders = await slides_manager.get_template_placeholders_async(template_id)
+        # Get placeholders
+        placeholders = slides_manager.get_template_placeholders(template_id)
         return placeholders
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch placeholders: {str(e)}")
 
 # Public endpoint for content generation
 @app.post("/generate-content", response_model=ContentGenerationResponse)
-async def generate_content(request: ContentGenerationRequest, background_tasks: BackgroundTasks):
+def generate_content(request: ContentGenerationRequest, background_tasks: BackgroundTasks):
     """Generate content for placeholders based on a prompt and template ID"""
     if not ai_generator:
         raise HTTPException(status_code=500, detail="AI generator not initialized. Check GOOGLE_API_KEY environment variable.")
@@ -130,8 +131,8 @@ async def generate_content(request: ContentGenerationRequest, background_tasks: 
         # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
-        # Get placeholders from the template asynchronously
-        placeholders = await slides_manager.get_template_placeholders_async(request.template_id)
+        # Get placeholders from the template
+        placeholders = slides_manager.get_template_placeholders(request.template_id)
         
         if not placeholders:
             return ContentGenerationResponse(
@@ -139,8 +140,8 @@ async def generate_content(request: ContentGenerationRequest, background_tasks: 
                 errors=["No placeholders found in the template"]
             )
         
-        # Generate content for the placeholders
-        result = ai_generator.generate(request.prompt, placeholders)
+        # Generate content for the placeholders with thread_id for memory
+        result = ai_generator.generate(request.prompt, placeholders, thread_id=request.thread_id)
         
         # Ensure result has the expected structure
         if not isinstance(result, dict):
@@ -152,8 +153,8 @@ async def generate_content(request: ContentGenerationRequest, background_tasks: 
         if "errors" not in result:
             result["errors"] = []
         
-        # Replace placeholders in the presentation asynchronously
-        generated_presentation_id = await slides_manager.replace_placeholders_async(
+        # Replace placeholders in the presentation
+        generated_presentation_id = slides_manager.replace_placeholders(
             request.template_id, 
             result["results"]
         )
@@ -172,6 +173,7 @@ async def generate_content(request: ContentGenerationRequest, background_tasks: 
         import traceback
         error_detail = f"Failed to generate content: {str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=error_detail)
+
 @app.get("/templates/{template_id}/comments", response_model=List[Dict[str, Any]])
 async def get_template_comments(template_id: str, user_id: str = Depends(get_current_user)):
     """Get all comments from a template presentation for debugging"""

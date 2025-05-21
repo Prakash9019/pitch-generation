@@ -77,37 +77,64 @@ class SlidesManager:
         presentation = self.slides_service.presentations().get(
             presentationId=template_id).execute()
         
-        # Get comments for the presentation
+        # Get comments for the presentation with more fields and maximum results
         comments_response = self.drive_service.comments().list(
             fileId=template_id,
-            fields="comments(content,quotedFileContent)",
-            includeDeleted=False
+            fields="comments(content,quotedFileContent,anchor,modifiedTime,replies)",
+            includeDeleted=False,
+            pageSize=100  # Request maximum number of comments
         ).execute()
         
-        # Debug: Print all comments to understand what's being returned
         print(f"Found {len(comments_response.get('comments', []))} comments in the presentation")
         
-        # Create a dictionary to map quoted text to comments
-        comment_map = {}
+        # Create a dictionary to map placeholder names to comments
+        placeholder_to_comment = {}
+        
+        # First pass: Process all comments and extract placeholder names
         for comment in comments_response.get('comments', []):
+            # Get the most recent version of the comment (either the comment itself or its latest reply)
+            comment_content = comment['content']
+            comment_time = comment.get('modifiedTime', '')
+            
+            # Check if there are replies and get the most recent one
+            if 'replies' in comment and comment['replies']:
+                replies = sorted(comment['replies'], key=lambda x: x.get('modifiedTime', ''), reverse=True)
+                if replies and replies[0].get('content'):
+                    comment_content = replies[0]['content']
+                    comment_time = replies[0].get('modifiedTime', comment_time)
+            
             if 'quotedFileContent' in comment and 'value' in comment['quotedFileContent']:
                 quoted_text = comment['quotedFileContent']['value']
-                print(f"Comment quoted text: {quoted_text}")
-                print(f"Comment content: {comment['content']}")
                 
-                # Check if the quoted text contains a placeholder pattern
-                if '{{' in quoted_text and '}}' in quoted_text:
-                    comment_map[quoted_text] = comment['content']
+                print(f"Comment quoted text: {quoted_text}")
+                print(f"Comment content: {comment_content}")
+                print(f"Comment modified time: {comment_time}")
+                
+                # Extract placeholder name from the quoted text using a more flexible pattern
+                # This will match {{placeholder_name}} as well as text containing it
+                placeholder_pattern = re.compile(r'{{([^{}]+)}}')
+                matches = placeholder_pattern.findall(quoted_text)
+                
+                if matches:
+                    # If we found a placeholder in the quoted text, map it to the comment
+                    for match in matches:
+                        # Only update if this is a newer comment or we don't have one yet
+                        if match not in placeholder_to_comment or comment_time > placeholder_to_comment[match]['time']:
+                            placeholder_to_comment[match] = {
+                                'content': comment_content,
+                                'time': comment_time
+                            }
         
-        print(f"Mapped {len(comment_map)} comments to placeholders")
+        print(f"Found comments for {len(placeholder_to_comment)} unique placeholders")
         
-        placeholders = []
-        placeholder_pattern = re.compile(r'{{([^{}]+)}}')
+        # Collect all placeholders from the presentation
+        all_placeholders = set()
+        placeholder_details = {}
         
         # Iterate through all slides
         for slide_index, slide in enumerate(presentation.get('slides', [])):
             # Check all page elements
-            for element_index, element in enumerate(slide.get('pageElements', [])):
+            for element in slide.get('pageElements', []):
                 # If the element has a shape with text
                 if 'shape' in element and 'text' in element['shape']:
                     # Check all text elements in the shape
@@ -115,35 +142,56 @@ class SlidesManager:
                         if 'textRun' in text_element and 'content' in text_element['textRun']:
                             content = text_element['textRun']['content']
                             # Find all placeholders in the text
+                            placeholder_pattern = re.compile(r'{{([^{}]+)}}')
                             matches = placeholder_pattern.findall(content)
-                            # Add new placeholders while preserving order
+                            
+                            # Add each placeholder to our set and store details
                             for match in matches:
-                                # Check if this placeholder is already in our list
-                                if not any(p['name'] == match for p in placeholders):
-                                    # Look for a comment associated with this placeholder
-                                    instruction = None
-                                    placeholder_with_braces = f"{{{{{match}}}}}"
-                                    
-                                    # Try different ways to match comments to placeholders
-                                    for quoted_text, comment_content in comment_map.items():
-                                        # Exact match
-                                        if placeholder_with_braces == quoted_text.strip():
-                                            instruction = comment_content
-                                            print(f"Exact match found for {placeholder_with_braces}")
-                                            break
-                                        # Placeholder is contained in the quoted text
-                                        elif placeholder_with_braces in quoted_text:
-                                            instruction = comment_content
-                                            print(f"Partial match found for {placeholder_with_braces} in {quoted_text}")
-                                            break
-                                    
-                                    # Add placeholder with instruction (which may be None)
-                                    placeholders.append({
+                                all_placeholders.add(match)
+                                if match not in placeholder_details:
+                                    placeholder_details[match] = {
                                         'name': match,
-                                        'instruction': instruction,
                                         'slide_index': slide_index + 1,  # 1-based for human readability
                                         'element_type': 'text'
-                                    })
+                                    }
+        
+        # Build the final list of placeholders with instructions
+        placeholders = []
+        
+        for placeholder_name in all_placeholders:
+            # Get the details we stored earlier
+            details = placeholder_details[placeholder_name]
+            
+            # Get the instruction from our comment map, or use a default
+            instruction = None
+            if placeholder_name in placeholder_to_comment:
+                instruction = placeholder_to_comment[placeholder_name]['content']
+            
+            # If no instruction was found, provide a generic instruction
+            if instruction is None:
+                instruction = f"Provide appropriate content for {placeholder_name}"
+            
+            # Parse word count constraints from instruction if present
+            min_words = None
+            max_words = None
+            if instruction:
+                word_count_pattern = r"{{(\d+),(\d+)}}"
+                word_count_match = re.search(word_count_pattern, instruction)
+                if word_count_match:
+                    min_words = int(word_count_match.group(1))
+                    max_words = int(word_count_match.group(2))
+            
+            # Create the placeholder entry with all details
+            placeholder_entry = {
+                'name': placeholder_name,
+                'instruction': instruction,
+                'slide_index': details['slide_index'],
+                'element_type': details['element_type'],
+                'min_words': min_words,
+                'max_words': max_words
+            }
+            
+            placeholders.append(placeholder_entry)
         
         return placeholders
 
