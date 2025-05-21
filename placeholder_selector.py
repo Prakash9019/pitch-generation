@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, List, Optional, Tuple
 from pydantic import BaseModel
 import re
@@ -87,9 +88,10 @@ class PlaceholderSelector:
         return result
     
     def __call__(self, placeholders: List) -> List[PlaceholderGroup]:
-        """Call the selector to group placeholders."""
+        """Make the selector callable directly."""
         # Process raw placeholders if they're dictionaries
         if placeholders and isinstance(placeholders[0], dict):
             placeholders = self.process_placeholders(placeholders)
             
         return self.group_by_slide(placeholders)
+

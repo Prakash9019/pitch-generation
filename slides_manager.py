@@ -1,3 +1,4 @@
+import asyncio
 from googleapiclient.discovery import build
 from typing import Dict, List, Optional, Set
 import re
@@ -14,6 +15,36 @@ class SlidesManager:
         if credentials:
             self.slides_service = build('slides', 'v1', credentials=credentials)
             self.drive_service = build('drive', 'v3', credentials=credentials)
+    
+    async def list_templates_async(self, folder_name: str = "Templates") -> List[Dict]:
+        """Async version: List available templates in the specified folder"""
+        # Create a new event loop for this function
+        loop = asyncio.get_event_loop()
+        
+        # Run the synchronous API calls in a thread pool
+        return await loop.run_in_executor(
+            None, lambda: self.list_templates(folder_name)
+        )
+    
+    async def get_template_placeholders_async(self, template_id: str) -> List[Dict[str, str]]:
+        """Async version: Get all placeholders from a template presentation with associated comments"""
+        # Create a new event loop for this function
+        loop = asyncio.get_event_loop()
+        
+        # Run the synchronous API calls in a thread pool
+        return await loop.run_in_executor(
+            None, lambda: self.get_template_placeholders(template_id)
+        )
+    
+    async def replace_placeholders_async(self, presentation_id: str, replacements: Dict[str, str]) -> str:
+        """Async version: Replace placeholders in a presentation with generated content"""
+        # Create a new event_loop for this function
+        loop = asyncio.get_event_loop()
+        
+        # Run the synchronous API calls in a thread pool
+        return await loop.run_in_executor(
+            None, lambda: self.replace_placeholders(presentation_id, replacements)
+        )
     
     def list_templates(self, folder_name: str = "Templates") -> List[Dict]:
         """List available templates in the specified folder"""
@@ -227,6 +258,7 @@ class SlidesManager:
         except Exception as e:
             print(f"Error deleting presentation: {str(e)}")
             return False
+
 
 
 

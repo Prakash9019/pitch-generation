@@ -1,6 +1,7 @@
 import os
 import datetime
-from fastapi import Depends, FastAPI, HTTPException, Body
+import asyncio
+from fastapi import Depends, FastAPI, HTTPException, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ load_dotenv()
 
 app = FastAPI(title="AI Pitchdeck Content Generator")
 
-# Add CORS middleware
+# Add CORS middleware for specific origins (frontend domains)
 origins = [
     "http://localhost:3000",    # Local development server
     "http://localhost:5173",    # Vite development server
@@ -88,7 +89,8 @@ async def get_templates(folder_name: str = "Templates"):
         credentials = get_credentials(None)
         slides_manager = SlidesManager(credentials=credentials)
         
-        templates = slides_manager.list_templates(folder_name=folder_name)
+        # Get templates asynchronously
+        templates = await slides_manager.list_templates_async(folder_name=folder_name)
         
         return [TemplateResponse(
             id=template.get("id"),
@@ -108,14 +110,15 @@ async def get_template_placeholders(template_id: str):
         # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
-        placeholders = slides_manager.get_template_placeholders(template_id)
+        # Get placeholders asynchronously
+        placeholders = await slides_manager.get_template_placeholders_async(template_id)
         return placeholders
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch placeholders: {str(e)}")
 
 # Public endpoint for content generation
 @app.post("/generate-content", response_model=ContentGenerationResponse)
-async def generate_content(request: ContentGenerationRequest):
+async def generate_content(request: ContentGenerationRequest, background_tasks: BackgroundTasks):
     """Generate content for placeholders based on a prompt and template ID"""
     if not ai_generator:
         raise HTTPException(status_code=500, detail="AI generator not initialized. Check GOOGLE_API_KEY environment variable.")
@@ -127,8 +130,8 @@ async def generate_content(request: ContentGenerationRequest):
         # Initialize slides manager with application credentials
         slides_manager = SlidesManager(credentials=credentials)
         
-        # Get placeholders from the template
-        placeholders = slides_manager.get_template_placeholders(request.template_id)
+        # Get placeholders from the template asynchronously
+        placeholders = await slides_manager.get_template_placeholders_async(request.template_id)
         
         if not placeholders:
             return ContentGenerationResponse(
@@ -149,8 +152,8 @@ async def generate_content(request: ContentGenerationRequest):
         if "errors" not in result:
             result["errors"] = []
         
-        # Replace placeholders in the presentation
-        generated_presentation_id = slides_manager.replace_placeholders(
+        # Replace placeholders in the presentation asynchronously
+        generated_presentation_id = await slides_manager.replace_placeholders_async(
             request.template_id, 
             result["results"]
         )
@@ -237,3 +240,4 @@ async def delete_output(presentation_id: str, user_id: str = Depends(get_current
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8080,reload=True)
+
