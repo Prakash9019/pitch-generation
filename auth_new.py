@@ -191,18 +191,18 @@ async def admin_callback(request: Request):
         user_info = get_user_info(credentials)
         
         return {
-            # "message": "Authentication successful",
-            # "user_info": user_info,
-            # "token": user_id,
-            # "scopes_granted": credentials.scopes,
-            # "note": "These credentials are temporary for this session only. For production, add these to your .env file:",
-            # "env_variables": {
-            #     "GOOGLE_CLIENT_ID": credentials.client_id,
-            #     "GOOGLE_CLIENT_SECRET": credentials.client_secret,
-            #     "GOOGLE_REFRESH_TOKEN": credentials.refresh_token,
-            #     "GOOGLE_TOKEN_URI": credentials.token_uri
-            # }
-            "Admin Setup Successful!"
+            "message": "Authentication successful",
+            "user_info": user_info,
+            "token": user_id,
+            "scopes_granted": credentials.scopes,
+            "note": "These credentials are temporary for this session only. For production, add these to your .env file:",
+            "env_variables": {
+                "GOOGLE_CLIENT_ID": credentials.client_id,
+                "GOOGLE_CLIENT_SECRET": credentials.client_secret,
+                "GOOGLE_REFRESH_TOKEN": credentials.refresh_token,
+                "GOOGLE_TOKEN_URI": credentials.token_uri
+            }
+            # "Admin Setup Successful!"
         }
     except Exception as e:
         raise HTTPException(
@@ -240,7 +240,7 @@ async def login():
     return RedirectResponse(url="/auth/admin/setup")
 
 
-
+6
 
 
 

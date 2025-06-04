@@ -61,9 +61,10 @@ class PlaceholderResponse(BaseModel):
     element_type: Optional[str] = None
 
 class ContentGenerationRequest(BaseModel):
-    prompt: str
     template_id: str
-    thread_id: Optional[str] = None  # Add thread_id as optional parameter
+    prompt: str
+    thread_id: Optional[str] = None
+    color_updates: Optional[Dict[str, str]] = None  # Add thread_id as optional parameter
 
 class ContentGenerationResponse(BaseModel):
     results: Dict[str, str]
@@ -71,6 +72,12 @@ class ContentGenerationResponse(BaseModel):
     presentation_id: Optional[str] = None
     presentation_url: Optional[str] = None
     presentation_view_url: Optional[str] = None
+
+class ColorUsageResponse(BaseModel):
+    colors: Dict[str, List[str]]
+
+class ReplaceColorsRequest(BaseModel):
+    color_replacements: Dict[str, str]  # Old color to new color mapping
 
 @app.get("/")
 async def root():
@@ -120,7 +127,7 @@ def get_template_placeholders(template_id: str):
 # Public endpoint for content generation
 @app.post("/generate-content", response_model=ContentGenerationResponse)
 def generate_content(request: ContentGenerationRequest, background_tasks: BackgroundTasks):
-    """Generate content for placeholders based on a prompt and template ID"""
+    """Generate content for placeholders based on a prompt and template ID, and optionally update colors"""
     if not ai_generator:
         raise HTTPException(status_code=500, detail="AI generator not initialized. Check GOOGLE_API_KEY environment variable.")
     
@@ -154,10 +161,26 @@ def generate_content(request: ContentGenerationRequest, background_tasks: Backgr
             result["errors"] = []
         
         # Replace placeholders in the presentation
+        # colors = slides_manager.get_theme_colors(request.template_id)
+        # print(colors)
         generated_presentation_id = slides_manager.replace_placeholders(
             request.template_id, 
             result["results"]
         )
+
+        # Update colors if color_updates is provided
+        if request.color_updates:
+            # theme_color_success = slides_manager.change_theme_colors(
+            #     generated_presentation_id,
+            #     request.color_updates
+            # )
+            hex_color_success = slides_manager.change_colors(
+                generated_presentation_id,
+                request.color_updates
+            )
+            if not hex_color_success:
+                result["errors"].append("Failed to update colors in the presentation")
+
         
         # Get the URLs for the generated presentation
         presentation_edit_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/edit"
@@ -236,10 +259,144 @@ async def delete_output(presentation_id: str, user_id: str = Depends(get_current
         return {"message": "Presentation deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete presentation: {str(e)}")
+        
+@app.get("/presentations/{presentation_id}/colors", response_model=ColorUsageResponse)
+async def get_presentation_colors(presentation_id: str):
+    """Get all colors used in a presentation"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Get colors
+        colors = slides_manager.get_presentation_colors(presentation_id)
+        
+        return ColorUsageResponse(colors=colors)
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to get colors: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
+class ColorUpdateRequest(BaseModel):
+    color_updates: Dict[str, str]
 
+@app.post("/presentations/{presentation_id}/colors")
+async def update_presentation_colors(presentation_id: str, color_update: ColorUpdateRequest):
+    """Update colors in a presentation"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Update colors
+        success = slides_manager.change_colors(presentation_id, color_update.color_updates)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update colors")
+        
+        return {"message": "Colors updated successfully"}
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to update colors: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
+@app.get("/presentations/{presentation_id}/structure")
+async def get_presentation_structure(presentation_id: str, slide_index: Optional[int] = None):
+    """Get the structure of slides in a presentation"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Get slide structure
+        structure = slides_manager.get_slide_structure(presentation_id, slide_index)
+        
+        return structure
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to get presentation structure: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8080,reload=True)
+@app.get("/presentations/{presentation_id}/slides/{slide_index}/elements")
+async def get_slide_elements(presentation_id: str, slide_index: int):
+    """Get detailed information about elements in a specific slide"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Get slide elements
+        elements = slides_manager.get_slide_elements(presentation_id, slide_index)
+        
+        return elements
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to get slide elements: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
+
+@app.post("/presentations/{presentation_id}/colors/debug")
+async def debug_color_changes(presentation_id: str, color_update: ColorUpdateRequest):
+    """Debug color changes to see what would be updated without actually applying changes"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Debug color changes
+        debug_info = slides_manager.debug_color_changes(presentation_id, color_update.color_updates)
+        
+        return debug_info
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to debug color changes: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
+
+# Credential and connection testing endpoints
+@app.get("/admin/test-connection")
+async def test_connection():
+    """Test if credentials and connection are working"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Test connection
+        result = slides_manager.test_connection()
+        
+        return result
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to test connection: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
+
+@app.get("/admin/credential-info")
+async def get_credential_info():
+    """Get information about current credentials"""
+    try:
+        # Use application credentials
+        credentials = get_credentials(None)
+        
+        # Initialize slides manager with application credentials
+        slides_manager = SlidesManager(credentials=credentials)
+        
+        # Get credential info
+        result = slides_manager.get_credential_info()
+        
+        return result
+    except Exception as e:
+        import traceback
+        error_detail = f"Failed to get credential info: {str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
