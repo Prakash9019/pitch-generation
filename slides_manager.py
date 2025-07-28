@@ -1519,3 +1519,583 @@ class SlidesManager:
                 "status": "error",
                 "message": f"Error getting credential info: {str(e)}"
             }
+    
+    def get_presentation_slides(self, presentation_id: str) -> Dict[str, Any]:
+        """
+        Get all slides data from a presentation for the frontend viewer
+        
+        Args:
+            presentation_id: The ID of the presentation
+            
+        Returns:
+            Dictionary containing presentation data with slides
+        """
+        if not self._slides_service:
+            raise Exception("Slides service not initialized")
+        
+        try:
+            # Get presentation
+            presentation = self._execute_with_retry(
+                self._slides_service.presentations().get,
+                presentationId=presentation_id
+            )
+            
+            slides_data = []
+            
+            for slide_index, slide in enumerate(presentation.get('slides', [])):
+                slide_elements = []
+                slide_title = f"Slide {slide_index + 1}"
+                
+                # Extract elements from the slide
+                for page_element in slide.get('pageElements', []):
+                    if 'shape' in page_element:
+                        shape = page_element['shape']
+                        if 'text' in shape:
+                            text_content = ""
+                            for text_run in shape['text'].get('textElements', []):
+                                if 'textRun' in text_run:
+                                    text_content += text_run['textRun'].get('content', '')
+                            
+                            element = {
+                                "element_id": page_element['objectId'],
+                                "type": "text",
+                                "content": text_content.strip(),
+                                "editable": True
+                            }
+                            slide_elements.append(element)
+                            
+                            # Use first text element as slide title if it looks like a title
+                            if slide_index == 0 and len(text_content.strip()) > 0:
+                                if len(text_content.strip()) < 100:  # Likely a title
+                                    slide_title = text_content.strip()[:50] + "..." if len(text_content.strip()) > 50 else text_content.strip()
+                
+                # Get slide thumbnail URL
+                slide_thumbnail_url = f"https://docs.google.com/presentation/d/{presentation_id}/export/png?id={presentation_id}&pageid={slide['objectId']}"
+                
+                slides_data.append({
+                    "slide_id": slide['objectId'],
+                    "slide_index": slide_index + 1,
+                    "title": slide_title,
+                    "elements": slide_elements,
+                    "thumbnail_url": slide_thumbnail_url,
+                    "embed_url": f"https://docs.google.com/presentation/d/{presentation_id}/embed?start=false&loop=false&delayms=3000&slide=id.{slide['objectId']}"
+                })
+            
+            return {
+                "presentation_id": presentation_id,
+                "title": presentation.get('title', 'Untitled Presentation'),
+                "slides": slides_data
+            }
+            
+        except Exception as e:
+            print(f"Error getting presentation slides: {e}")
+            raise
+    
+    def update_slide_elements(self, presentation_id: str, slide_id: str, elements: Dict[str, str]) -> bool:
+        """
+        Update content of specific elements in a slide
+        
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide
+            elements: Dictionary mapping element_id to new content
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._slides_service:
+            raise Exception("Slides service not initialized")
+        
+        try:
+            requests = []
+            
+            # Create update requests for each element
+            for element_id, new_content in elements.items():
+                # Delete existing text
+                requests.append({
+                    'deleteText': {
+                        'objectId': element_id,
+                        'textRange': {
+                            'type': 'ALL'
+                        }
+                    }
+                })
+                
+                # Insert new text
+                requests.append({
+                    'insertText': {
+                        'objectId': element_id,
+                        'text': new_content,
+                        'insertionIndex': 0
+                    }
+                })
+            
+            if requests:
+                # Execute batch update
+                self._execute_with_retry(
+                    self._slides_service.presentations().batchUpdate,
+                    presentationId=presentation_id,
+                    body={'requests': requests}
+                )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error updating slide elements: {e}")
+            return False
+
+    def upload_image_to_drive(self, file_content: bytes, filename: str, content_type: str) -> Optional[str]:
+        """Upload an image to Google Drive and return a public URL
+        
+        Args:
+            file_content: The image file content as bytes
+            filename: The original filename
+            content_type: The MIME type of the file
+            
+        Returns:
+            Public URL of the uploaded image, or None if failed
+        """
+        if not self._drive_service:
+            raise Exception("Drive service not initialized")
+        
+        try:
+            # Create a unique filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_filename = f"slide_image_{timestamp}_{filename}"
+            
+            # Upload file to Drive
+            file_metadata = {
+                'name': unique_filename,
+                'parents': ['your-images-folder-id']  # You might want to create a specific folder
+            }
+            
+            from googleapiclient.http import MediaIoBaseUpload
+            import io
+            
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_content),
+                mimetype=content_type,
+                resumable=True
+            )
+            
+            file = self._execute_with_retry(
+                self._drive_service.files().create,
+                body=file_metadata,
+                media_body=media,
+                fields='id,webViewLink'
+            )
+            
+            file_id = file.get('id')
+            
+            # Make the file publicly viewable
+            permission = {
+                'type': 'anyone',
+                'role': 'reader'
+            }
+            
+            self._execute_with_retry(
+                self._drive_service.permissions().create,
+                fileId=file_id,
+                body=permission
+            )
+            
+            # Return direct image URL
+            return f"https://drive.google.com/uc?id={file_id}"
+            
+        except Exception as e:
+            print(f"Error uploading image to Drive: {e}")
+            return None
+
+    def update_slide_canvas(self, presentation_id: str, slide_id: str, canvas_data: Dict[str, Any]) -> bool:
+        """Update slide with enhanced canvas data including positions, formatting, etc.
+        
+        Args:
+            presentation_id: The presentation ID
+            slide_id: The slide ID
+            canvas_data: Canvas data from Fabric.js including objects and their properties
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._slides_service:
+            raise Exception("Slides service not initialized")
+        
+        try:
+            requests = []
+            
+            # Update background color if provided
+            if canvas_data.get('backgroundColor'):
+                requests.append({
+                    'updatePageProperties': {
+                        'objectId': slide_id,
+                        'pageProperties': {
+                            'pageBackgroundFill': {
+                                'solidFill': {
+                                    'color': {
+                                        'rgbColor': self._hex_to_rgb(canvas_data['backgroundColor'])
+                                    }
+                                }
+                            }
+                        },
+                        'fields': 'pageBackgroundFill'
+                    }
+                })
+            
+            # Process canvas objects
+            if 'objects' in canvas_data:
+                for obj in canvas_data['objects']:
+                    if obj.get('type') == 'textbox':
+                        self._process_text_object(requests, obj)
+                    elif obj.get('type') == 'image':
+                        self._process_image_object(requests, obj, presentation_id, slide_id)
+                    elif obj.get('type') in ['rect', 'circle', 'triangle']:
+                        self._process_shape_object(requests, obj, presentation_id, slide_id)
+            
+            # Execute all requests
+            if requests:
+                self._execute_with_retry(
+                    self._slides_service.presentations().batchUpdate,
+                    presentationId=presentation_id,
+                    body={'requests': requests}
+                )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error updating slide canvas: {e}")
+            return False
+
+    def _process_text_object(self, requests: List[Dict], text_obj: Dict[str, Any]):
+        """Process a text object from canvas and add update requests"""
+        object_id = text_obj.get('elementId') or text_obj.get('id')
+        if not object_id:
+            # Create new text box
+            object_id = f"text_{int(datetime.datetime.now().timestamp())}"
+            
+            # Create text box
+            requests.append({
+                'createShape': {
+                    'objectId': object_id,
+                    'shapeType': 'TEXT_BOX',
+                    'elementProperties': {
+                        'pageObjectId': text_obj.get('slideId'),
+                        'size': {
+                            'width': {'magnitude': text_obj.get('width', 200), 'unit': 'PT'},
+                            'height': {'magnitude': text_obj.get('height', 50), 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'scaleX': text_obj.get('scaleX', 1),
+                            'scaleY': text_obj.get('scaleY', 1),
+                            'translateX': text_obj.get('left', 100),
+                            'translateY': text_obj.get('top', 100),
+                            'unit': 'PT'
+                        }
+                    }
+                }
+            })
+        
+        # Update text content
+        if text_obj.get('text'):
+            requests.extend([
+                {
+                    'deleteText': {
+                        'objectId': object_id,
+                        'textRange': {'type': 'ALL'}
+                    }
+                },
+                {
+                    'insertText': {
+                        'objectId': object_id,
+                        'text': text_obj['text'],
+                        'insertionIndex': 0
+                    }
+                }
+            ])
+        
+        # Update text formatting
+        if any(prop in text_obj for prop in ['fontSize', 'fontFamily', 'fill', 'fontWeight', 'fontStyle']):
+            format_request = {
+                'updateTextStyle': {
+                    'objectId': object_id,
+                    'style': {},
+                    'textRange': {'type': 'ALL'},
+                    'fields': []
+                }
+            }
+            
+            if 'fontSize' in text_obj:
+                format_request['updateTextStyle']['style']['fontSize'] = {
+                    'magnitude': text_obj['fontSize'],
+                    'unit': 'PT'
+                }
+                format_request['updateTextStyle']['fields'].append('fontSize')
+            
+            if 'fontFamily' in text_obj:
+                format_request['updateTextStyle']['style']['fontFamily'] = text_obj['fontFamily']
+                format_request['updateTextStyle']['fields'].append('fontFamily')
+            
+            if 'fill' in text_obj:
+                format_request['updateTextStyle']['style']['foregroundColor'] = {
+                    'opaqueColor': {
+                        'rgbColor': self._hex_to_rgb(text_obj['fill'])
+                    }
+                }
+                format_request['updateTextStyle']['fields'].append('foregroundColor')
+            
+            if 'fontWeight' in text_obj:
+                format_request['updateTextStyle']['style']['bold'] = text_obj['fontWeight'] == 'bold'
+                format_request['updateTextStyle']['fields'].append('bold')
+            
+            if 'fontStyle' in text_obj:
+                format_request['updateTextStyle']['style']['italic'] = text_obj['fontStyle'] == 'italic'
+                format_request['updateTextStyle']['fields'].append('italic')
+            
+            if format_request['updateTextStyle']['fields']:
+                format_request['updateTextStyle']['fields'] = ','.join(format_request['updateTextStyle']['fields'])
+                requests.append(format_request)
+
+    def _process_image_object(self, requests: List[Dict], image_obj: Dict[str, Any], presentation_id: str, slide_id: str):
+        """Process an image object from canvas and add update requests"""
+        if image_obj.get('src'):
+            object_id = image_obj.get('elementId') or f"image_{int(datetime.datetime.now().timestamp())}"
+            
+            requests.append({
+                'createImage': {
+                    'objectId': object_id,
+                    'url': image_obj['src'],
+                    'elementProperties': {
+                        'pageObjectId': slide_id,
+                        'size': {
+                            'width': {'magnitude': image_obj.get('width', 200) * image_obj.get('scaleX', 1), 'unit': 'PT'},
+                            'height': {'magnitude': image_obj.get('height', 150) * image_obj.get('scaleY', 1), 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'translateX': image_obj.get('left', 100),
+                            'translateY': image_obj.get('top', 100),
+                            'unit': 'PT'
+                        }
+                    }
+                }
+            })
+
+    def _process_shape_object(self, requests: List[Dict], shape_obj: Dict[str, Any], presentation_id: str, slide_id: str):
+        """Process a shape object from canvas and add update requests"""
+        object_id = shape_obj.get('elementId') or f"shape_{int(datetime.datetime.now().timestamp())}"
+        
+        # Map Fabric.js shapes to Google Slides shapes
+        shape_type_map = {
+            'rect': 'RECTANGLE',
+            'circle': 'ELLIPSE',
+            'triangle': 'TRIANGLE'
+        }
+        
+        shape_type = shape_type_map.get(shape_obj.get('type'), 'RECTANGLE')
+        
+        requests.append({
+            'createShape': {
+                'objectId': object_id,
+                'shapeType': shape_type,
+                'elementProperties': {
+                    'pageObjectId': slide_id,
+                    'size': {
+                        'width': {'magnitude': shape_obj.get('width', 100) * shape_obj.get('scaleX', 1), 'unit': 'PT'},
+                        'height': {'magnitude': shape_obj.get('height', 100) * shape_obj.get('scaleY', 1), 'unit': 'PT'}
+                    },
+                    'transform': {
+                        'translateX': shape_obj.get('left', 100),
+                        'translateY': shape_obj.get('top', 100),
+                        'unit': 'PT'
+                    }
+                }
+            }
+        })
+        
+        # Update shape fill and stroke
+        if shape_obj.get('fill') or shape_obj.get('stroke'):
+            shape_props = {}
+            fields = []
+            
+            if shape_obj.get('fill'):
+                shape_props['shapeBackgroundFill'] = {
+                    'solidFill': {
+                        'color': {
+                            'rgbColor': self._hex_to_rgb(shape_obj['fill'])
+                        }
+                    }
+                }
+                fields.append('shapeBackgroundFill')
+            
+            if shape_obj.get('stroke'):
+                shape_props['outline'] = {
+                    'outlineFill': {
+                        'solidFill': {
+                            'color': {
+                                'rgbColor': self._hex_to_rgb(shape_obj['stroke'])
+                            }
+                        }
+                    },
+                    'weight': {
+                        'magnitude': shape_obj.get('strokeWidth', 1),
+                        'unit': 'PT'
+                    }
+                }
+                fields.append('outline')
+            
+            if fields:
+                requests.append({
+                    'updateShapeProperties': {
+                        'objectId': object_id,
+                        'shapeProperties': shape_props,
+                        'fields': ','.join(fields)
+                    }
+                })
+
+    def add_slide_element(self, presentation_id: str, slide_id: str, element_data: Dict[str, Any]) -> Optional[str]:
+        """Add a new element to a slide
+        
+        Args:
+            presentation_id: The presentation ID
+            slide_id: The slide ID
+            element_data: Element data including type, content, position, etc.
+            
+        Returns:
+            Element ID if successful, None otherwise
+        """
+        if not self._slides_service:
+            raise Exception("Slides service not initialized")
+        
+        try:
+            element_id = f"element_{int(datetime.datetime.now().timestamp())}"
+            requests = []
+            
+            if element_data.get('type') == 'text':
+                requests.append({
+                    'createShape': {
+                        'objectId': element_id,
+                        'shapeType': 'TEXT_BOX',
+                        'elementProperties': {
+                            'pageObjectId': slide_id,
+                            'size': {
+                                'width': {'magnitude': element_data.get('size', {}).get('width', 200), 'unit': 'PT'},
+                                'height': {'magnitude': element_data.get('size', {}).get('height', 50), 'unit': 'PT'}
+                            },
+                            'transform': {
+                                'translateX': element_data.get('position', {}).get('x', 100),
+                                'translateY': element_data.get('position', {}).get('y', 100),
+                                'unit': 'PT'
+                            }
+                        }
+                    }
+                })
+                
+                # Add text content
+                if element_data.get('content'):
+                    requests.append({
+                        'insertText': {
+                            'objectId': element_id,
+                            'text': element_data['content'],
+                            'insertionIndex': 0
+                        }
+                    })
+            
+            # Execute requests
+            if requests:
+                self._execute_with_retry(
+                    self._slides_service.presentations().batchUpdate,
+                    presentationId=presentation_id,
+                    body={'requests': requests}
+                )
+            
+            return element_id
+            
+        except Exception as e:
+            print(f"Error adding slide element: {e}")
+            return None
+
+    def delete_slide_element(self, presentation_id: str, slide_id: str, element_id: str) -> bool:
+        """Delete an element from a slide
+        
+        Args:
+            presentation_id: The presentation ID
+            slide_id: The slide ID
+            element_id: The element ID to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._slides_service:
+            raise Exception("Slides service not initialized")
+        
+        try:
+            requests = [{
+                'deleteObject': {
+                    'objectId': element_id
+                }
+            }]
+            
+            self._execute_with_retry(
+                self._slides_service.presentations().batchUpdate,
+                presentationId=presentation_id,
+                body={'requests': requests}
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error deleting slide element: {e}")
+            return False
+
+    def duplicate_presentation(self, presentation_id: str, new_title: Optional[str] = None) -> Optional[str]:
+        """Create a duplicate of an existing presentation
+        
+        Args:
+            presentation_id: The source presentation ID
+            new_title: Title for the new presentation
+            
+        Returns:
+            New presentation ID if successful, None otherwise
+        """
+        if not self._drive_service:
+            raise Exception("Drive service not initialized")
+        
+        try:
+            # Get original presentation title if no new title provided
+            if not new_title:
+                original = self._execute_with_retry(
+                    self._drive_service.files().get,
+                    fileId=presentation_id,
+                    fields='name'
+                )
+                new_title = f"Copy of {original.get('name', 'Presentation')}"
+            
+            # Copy the presentation
+            copied_file = self._execute_with_retry(
+                self._drive_service.files().copy,
+                fileId=presentation_id,
+                body={'name': new_title}
+            )
+            
+            return copied_file.get('id')
+            
+        except Exception as e:
+            print(f"Error duplicating presentation: {e}")
+            return None
+
+    def _hex_to_rgb(self, hex_color: str) -> Dict[str, float]:
+        """Convert hex color to RGB values for Google Slides API
+        
+        Args:
+            hex_color: Hex color string (e.g., '#FF5722' or 'FF5722')
+            
+        Returns:
+            Dict with red, green, blue values between 0 and 1
+        """
+        # Remove # if present
+        hex_color = hex_color.lstrip('#')
+        
+        # Convert to RGB
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        
+        return {'red': r, 'green': g, 'blue': b}

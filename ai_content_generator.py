@@ -258,12 +258,14 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                 # Store the content
                 generated_content[placeholder.name] = content
                 
-                # Add error if word count still doesn't match
-                if placeholder.max_words and word_count > placeholder.max_words:
+                # Add error if word count still doesn't match (with small tolerance)
+                tolerance = 2  # Allow 2 words tolerance for better user experience
+                
+                if placeholder.max_words and word_count > (placeholder.max_words + tolerance):
                     error_msg = f"Content for {placeholder.name} has {word_count} words, but maximum is {placeholder.max_words}"
                     errors.append(error_msg)
                 
-                if placeholder.min_words and word_count < placeholder.min_words:
+                if placeholder.min_words and word_count < (placeholder.min_words - tolerance):
                     error_msg = f"Content for {placeholder.name} has {word_count} words, but minimum is {placeholder.min_words}"
                     errors.append(error_msg)
                 

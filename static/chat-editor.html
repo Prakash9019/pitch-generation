@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat-Based Slide Editor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .message-bubble {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .typing-indicator {
+            opacity: 0.7;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <h1 class="text-2xl font-bold text-gray-900">Chat-Based Slide Editor</h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="helpBtn" class="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 rounded-lg">
+                            Help
+                        </button>
+                        <button id="newSessionBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                            New Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Chat Interface -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-lg shadow-sm border">
+                        <div class="border-b p-4">
+                            <h2 class="text-lg font-semibold text-gray-900">Chat with Your Presentation</h2>
+                            <p class="text-sm text-gray-500 mt-1">Use natural language to edit your slides</p>
+                        </div>
+                        
+                        <!-- Chat Messages -->
+                        <div id="chatContainer" class="chat-container p-4 space-y-4" style="min-height: 400px;">
+                            <div class="message-bubble bg-blue-50 p-3 rounded-lg">
+                                <div class="text-sm font-medium text-blue-800 mb-1">Assistant</div>
+                                <div class="text-gray-700">
+                                    👋 Hello! I'm your AI slide editor. I can help you modify your presentation using natural language commands.
+                                    <br><br>
+                                    First, please enter your Presentation ID to get started, or try the demo examples below:
+                                    <ul class="mt-2 space-y-1 text-sm">
+                                        <li>• "Reduce the growth numbers in Slide 5"</li>
+                                        <li>• "Change customer persona image on Slide 4"</li>
+                                        <li>• "Make the title bigger on slide 2"</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Chat Input -->
+                        <div class="border-t p-4">
+                            <div class="flex space-x-4">
+                                <div class="flex-1">
+                                    <input 
+                                        id="messageInput" 
+                                        type="text" 
+                                        placeholder="Type your editing request here... (e.g., 'Reduce the numbers in slide 3')"
+                                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                </div>
+                                <button 
+                                    id="sendBtn" 
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="lg:col-span-1">
+                    <!-- Presentation Info -->
+                    <div class="bg-white rounded-lg shadow-sm border mb-6">
+                        <div class="p-4 border-b">
+                            <h3 class="text-lg font-semibold text-gray-900">Presentation Info</h3>
+                        </div>
+                        <div class="p-4 space-y-4">
+                            <div>
+                                <label for="presentationId" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Presentation ID
+                                </label>
+                                <input 
+                                    id="presentationId" 
+                                    type="text" 
+                                    placeholder="Enter presentation ID or use demo-template-1"
+                                    value="demo-template-1"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                <p class="text-xs text-gray-500 mt-1">Use demo-template-1 for testing</p>
+                            </div>
+                            
+                            <div id="sessionInfo" class="text-sm text-gray-600">
+                                <div><strong>Status:</strong> <span id="sessionStatus">Not connected</span></div>
+                                <div><strong>Thread ID:</strong> <span id="threadId">None</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Commands -->
+                    <div class="bg-white rounded-lg shadow-sm border">
+                        <div class="p-4 border-b">
+                            <h3 class="text-lg font-semibold text-gray-900">Quick Commands</h3>
+                        </div>
+                        <div class="p-4">
+                            <div class="space-y-2">
+                                <button class="quick-command-btn w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border" 
+                                        data-command="Reduce the growth numbers in Slide 5">
+                                    Reduce numbers in slide
+                                </button>
+                                <button class="quick-command-btn w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border" 
+                                        data-command="Change customer persona image on Slide 4">
+                                    Change image
+                                </button>
+                                <button class="quick-command-btn w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border" 
+                                        data-command="Make the title bigger on slide 2">
+                                    Make title bigger
+                                </button>
+                                <button class="quick-command-btn w-full text-left px-3 py-2 text-sm bg-gray-50 hover:bg-gray-100 rounded border" 
+                                        data-command="Add a bullet point about market trends">
+                                    Add bullet point
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Chat Editor Help</h3>
+                    <button id="closeHelpBtn" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="helpContent" class="text-sm text-gray-600">
+                    Loading help content...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentThreadId = null;
+        let currentPresentationId = null;
+        
+        // DOM elements
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const presentationIdInput = document.getElementById('presentationId');
+        const sessionStatus = document.getElementById('sessionStatus');
+        const threadIdSpan = document.getElementById('threadId');
+        const helpBtn = document.getElementById('helpBtn');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const helpModal = document.getElementById('helpModal');
+        const closeHelpBtn = document.getElementById('closeHelpBtn');
+        const helpContent = document.getElementById('helpContent');
+
+        // Event listeners
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        newSessionBtn.addEventListener('click', startNewSession);
+        helpBtn.addEventListener('click', showHelp);
+        closeHelpBtn.addEventListener('click', hideHelp);
+        
+        // Quick command buttons
+        document.querySelectorAll('.quick-command-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                messageInput.value = btn.dataset.command;
+                sendMessage();
+            });
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            currentPresentationId = presentationIdInput.value || 'demo-template-1';
+        });
+
+        async function startNewSession() {
+            const presentationId = presentationIdInput.value.trim();
+            if (!presentationId) {
+                addMessage('system', 'Please enter a presentation ID first.');
+                return;
+            }
+
+            try {
+                showTyping();
+                const response = await fetch(`/presentations/${presentationId}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                hideTyping();
+
+                if (response.ok) {
+                    currentThreadId = data.thread_id;
+                    currentPresentationId = presentationId;
+                    
+                    // Update UI
+                    threadIdSpan.textContent = currentThreadId;
+                    sessionStatus.textContent = 'Connected';
+                    sessionStatus.className = 'text-green-600 font-medium';
+                    
+                    // Add welcome message
+                    addMessage('assistant', data.message);
+                    
+                    // Show examples
+                    if (data.examples) {
+                        const exampleText = "Here are some example commands you can try:\\n" + 
+                            data.examples.map(ex => `• ${ex}`).join('\\n');
+                        addMessage('assistant', exampleText);
+                    }
+                } else {
+                    addMessage('system', `Error: ${data.detail || 'Failed to start session'}`);
+                }
+            } catch (error) {
+                hideTyping();
+                addMessage('system', `Error: ${error.message}`);
+            }
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            const presentationId = presentationIdInput.value.trim();
+            if (!presentationId) {
+                addMessage('system', 'Please enter a presentation ID first.');
+                return;
+            }
+
+            // Add user message to chat
+            addMessage('user', message);
+            messageInput.value = '';
+
+            // Show typing indicator
+            showTyping();
+
+            try {
+                const requestBody = {
+                    message: message,
+                    thread_id: currentThreadId
+                };
+
+                const response = await fetch(`/presentations/${presentationId}/chat-edit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+                hideTyping();
+
+                if (response.ok) {
+                    // Update thread ID
+                    currentThreadId = data.thread_id;
+                    threadIdSpan.textContent = currentThreadId;
+                    
+                    // Add response message
+                    addMessage('assistant', data.message);
+                    
+                    // Add changes made
+                    if (data.changes_made && data.changes_made.length > 0) {
+                        const changesText = "Changes made:\\n" + 
+                            data.changes_made.map(change => `✅ ${change}`).join('\\n');
+                        addMessage('system', changesText);
+                    }
+                    
+                    // Add any errors
+                    if (data.errors && data.errors.length > 0) {
+                        const errorsText = "Issues encountered:\\n" + 
+                            data.errors.map(error => `⚠️ ${error}`).join('\\n');
+                        addMessage('system', errorsText);
+                    }
+                } else {
+                    addMessage('system', `Error: ${data.detail || 'Failed to process request'}`);
+                }
+            } catch (error) {
+                hideTyping();
+                addMessage('system', `Error: ${error.message}`);
+            }
+        }
+
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-bubble';
+            
+            let bgColor, textColor, senderName;
+            switch (sender) {
+                case 'user':
+                    bgColor = 'bg-blue-600';
+                    textColor = 'text-white';
+                    senderName = 'You';
+                    messageDiv.classList.add('ml-auto', 'max-w-xs');
+                    break;
+                case 'assistant':
+                    bgColor = 'bg-gray-100';
+                    textColor = 'text-gray-800';
+                    senderName = 'Assistant';
+                    messageDiv.classList.add('mr-auto', 'max-w-md');
+                    break;
+                case 'system':
+                    bgColor = 'bg-yellow-50 border border-yellow-200';
+                    textColor = 'text-yellow-800';
+                    senderName = 'System';
+                    messageDiv.classList.add('mx-auto', 'max-w-lg');
+                    break;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="${bgColor} p-3 rounded-lg ${sender === 'user' ? 'rounded-br-sm' : 'rounded-bl-sm'}">
+                    <div class="text-xs font-medium mb-1 ${textColor}" style="opacity: 0.8">${senderName}</div>
+                    <div class="${textColor}">${text.replace(/\\n/g, '<br>')}</div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function showTyping() {
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'typing-indicator mr-auto max-w-md';
+            typingDiv.innerHTML = `
+                <div class="bg-gray-100 p-3 rounded-lg rounded-bl-sm">
+                    <div class="text-xs font-medium text-gray-600 mb-1">Assistant</div>
+                    <div class="text-gray-600">Typing...</div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function hideTyping() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        async function showHelp() {
+            helpModal.classList.remove('hidden');
+            helpContent.innerHTML = 'Loading help content...';
+            
+            try {
+                const response = await fetch('/presentations/demo-template-1/chat/help');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    let helpHTML = `
+                        <h4 class="font-medium text-gray-900 mb-2">${data.title}</h4>
+                        <p class="mb-4">${data.description}</p>
+                        
+                        <h5 class="font-medium text-gray-900 mb-2">Supported Commands:</h5>
+                        <div class="space-y-2 mb-4">
+                    `;
+                    
+                    for (const [category, commands] of Object.entries(data.supported_commands)) {
+                        helpHTML += `
+                            <div>
+                                <h6 class="font-medium text-gray-700">${category.replace('_', ' ').toUpperCase()}</h6>
+                                <ul class="list-disc list-inside ml-4 text-sm">
+                                    ${commands.map(cmd => `<li>${cmd}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    helpHTML += `
+                        </div>
+                        
+                        <h5 class="font-medium text-gray-900 mb-2">Examples:</h5>
+                        <div class="space-y-2 mb-4">
+                            ${data.examples.map(ex => `
+                                <div class="bg-gray-50 p-2 rounded">
+                                    <div class="font-medium text-sm">${ex.command}</div>
+                                    <div class="text-xs text-gray-600">${ex.description}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <h5 class="font-medium text-gray-900 mb-2">Tips:</h5>
+                        <ul class="list-disc list-inside text-sm">
+                            ${data.tips.map(tip => `<li>${tip}</li>`).join('')}
+                        </ul>
+                    `;
+                    
+                    helpContent.innerHTML = helpHTML;
+                } else {
+                    helpContent.innerHTML = 'Failed to load help content.';
+                }
+            } catch (error) {
+                helpContent.innerHTML = `Error loading help: ${error.message}`;
+            }
+        }
+
+        function hideHelp() {
+            helpModal.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

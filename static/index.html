@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Pitchdeck Generator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <i class="fas fa-presentation"></i>
+                    AI Pitchdeck Generator
+                </h1>
+                <p class="subtitle">Transform your ideas into professional presentations</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Step 1: Template Selection -->
+            <section id="template-section" class="step-section active">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <h2>Choose a Template</h2>
+                    <p>Select a presentation template to get started</p>
+                </div>
+                
+                <div class="loading" id="templates-loading">
+                    <div class="spinner"></div>
+                    <p>Loading templates...</p>
+                </div>
+                
+                <div class="templates-grid" id="templates-grid">
+                    <!-- Templates will be loaded here -->
+                </div>
+                
+                <div class="step-actions">
+                    <button id="continue-to-prompt" class="btn btn-primary" disabled>
+                        Continue to Prompt
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 2: Prompt Input -->
+            <section id="prompt-section" class="step-section">
+                <div class="step-header">
+                    <div class="step-number">2</div>
+                    <h2>Describe Your Presentation</h2>
+                    <p>Tell us about your business or idea</p>
+                </div>
+                
+                <div class="selected-template" id="selected-template-info">
+                    <!-- Selected template info will be shown here -->
+                </div>
+                
+                <div class="prompt-container">
+                    <div class="form-group">
+                        <label for="prompt-input">Your Business Description</label>
+                        <div class="prompt-help">
+                            <details>
+                                <summary>💡 Need help? Click for example prompts</summary>
+                                <div class="example-prompts">
+                                    <div class="example-prompt" onclick="fillExamplePrompt(0)">
+                                        <strong>Tech Startup:</strong> "We're developing an AI-powered fitness app that creates personalized workout plans..."
+                                    </div>
+                                    <div class="example-prompt" onclick="fillExamplePrompt(1)">
+                                        <strong>E-commerce Business:</strong> "Our company sells sustainable home products through an online marketplace..."
+                                    </div>
+                                    <div class="example-prompt" onclick="fillExamplePrompt(2)">
+                                        <strong>Service Business:</strong> "We provide digital marketing consulting services for small businesses..."
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        <textarea 
+                            id="prompt-input" 
+                            placeholder="Describe your business, product, or idea. Include details about your target market, value proposition, business model, and any other relevant information..."
+                            rows="8"
+                        ></textarea>
+                        <div class="char-counter">
+                            <span id="char-count">0</span> characters
+                        </div>
+                    </div>
+                    
+                    <div class="placeholders-preview" id="placeholders-preview">
+                        <h3>Template Placeholders</h3>
+                        <div class="placeholders-list" id="placeholders-list">
+                            <!-- Placeholders will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="step-actions">
+                    <button id="back-to-templates" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Templates
+                    </button>
+                    <button id="generate-content" class="btn btn-primary">
+                        Generate Presentation
+                        <i class="fas fa-magic"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 3: Generation & Output -->
+            <section id="output-section" class="step-section">
+                <div class="step-header">
+                    <div class="step-number">3</div>
+                    <h2>Your Presentation is Ready!</h2>
+                    <p>Review and access your generated presentation</p>
+                </div>
+                
+                <div class="generation-status" id="generation-status">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Generating your presentation...</p>
+                        <div class="progress-text">This may take a few moments</div>
+                    </div>
+                </div>
+                
+                <div class="output-content" id="output-content" style="display: none;">
+                    <!-- Presentation Controls -->
+                    <div class="presentation-controls">
+                        <div class="control-group">
+                            <button id="view-mode-btn" class="btn btn-primary active">
+                                <i class="fas fa-eye"></i>
+                                View Mode
+                            </button>
+                            <button id="edit-mode-btn" class="btn btn-secondary">
+                                <i class="fas fa-edit"></i>
+                                Edit Mode
+                            </button>
+                            <button id="chat-mode-btn" class="btn btn-secondary">
+                                <i class="fas fa-comments"></i>
+                                Chat Edit
+                            </button>
+                        </div>
+                        <div class="control-group">
+                            <button id="save-presentation" class="btn btn-primary" style="display: none;">
+                                <i class="fas fa-save"></i>
+                                Save Changes
+                            </button>
+                            <a id="export-presentation" href="#" target="_blank" class="btn btn-secondary">
+                                <i class="fas fa-external-link-alt"></i>
+                                Open in Google Slides
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Presentation Viewer Modes -->
+                    <div class="presentation-viewer-modes" id="presentation-viewer-modes" style="display: none;">
+                        <button id="slides-mode-btn" class="viewer-mode-btn active">
+                            <i class="fas fa-images"></i>
+                            Visual Slides
+                        </button>
+                        <button id="text-mode-btn" class="viewer-mode-btn">
+                            <i class="fas fa-align-left"></i>
+                            Text Content
+                        </button>
+                        <button id="fullscreen-mode-btn" class="viewer-mode-btn">
+                            <i class="fas fa-expand"></i>
+                            Full Presentation
+                        </button>
+                    </div>
+
+                    <!-- Presentation Viewer/Editor -->
+                    <div class="presentation-container">
+                        <div class="slides-sidebar">
+                            <h4>Slides (<span id="slide-count">0</span>)</h4>
+                            <div id="slides-thumbnails" class="slides-thumbnails">
+                                <!-- Slide thumbnails will be generated here -->
+                            </div>
+                        </div>
+                        
+                        <div class="slide-editor">
+                            <div class="slide-canvas">
+                                <div id="current-slide" class="current-slide">
+                                    <div class="slide-placeholder">
+                                        <i class="fas fa-presentation"></i>
+                                        <p>Select a slide to view</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Edit Panel (shown in edit mode) -->
+                            <div id="edit-panel" class="edit-panel" style="display: none;">
+                                <h4>Edit Slide Content</h4>
+                                <div id="editable-elements" class="editable-elements">
+                                    <!-- Editable elements will be shown here -->
+                                </div>
+                            </div>
+                            
+                            <!-- Chat Edit Panel (shown in chat mode) -->
+                            <div id="chat-panel" class="chat-panel" style="display: none;">
+                                <div class="chat-header">
+                                    <h4><i class="fas fa-comments"></i> Chat with Your Presentation</h4>
+                                    <p class="chat-subtitle">Tell me what you'd like to change using natural language</p>
+                                </div>
+                                
+                                <div class="chat-container" id="chat-messages">
+                                    <div class="chat-message assistant-message">
+                                        <div class="message-avatar">
+                                            <i class="fas fa-robot"></i>
+                                        </div>
+                                        <div class="message-content">
+                                            <div class="message-text">
+                                                Hi! I can help you edit your presentation using natural language. Try commands like:
+                                                <ul>
+                                                    <li>"Reduce the growth numbers in Slide 3"</li>
+                                                    <li>"Change the image on Slide 2"</li>
+                                                    <li>"Make the title bigger on Slide 1"</li>
+                                                    <li>"Add a bullet point about market size"</li>
+                                                </ul>
+                                                What would you like to change?
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="chat-input-container">
+                                    <div class="chat-input-wrapper">
+                                        <input 
+                                            type="text" 
+                                            id="chat-message-input" 
+                                            placeholder="Type your editing request here... (e.g., 'Make slide 2 title bigger')"
+                                            class="chat-input"
+                                        />
+                                        <button id="send-chat-message" class="chat-send-btn">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                    </div>
+                                    <div class="chat-quick-actions">
+                                        <button class="quick-action-btn" data-message="Reduce the numbers in slide 3">
+                                            Reduce numbers
+                                        </button>
+                                        <button class="quick-action-btn" data-message="Change the image on slide 2">
+                                            Change image
+                                        </button>
+                                        <button class="quick-action-btn" data-message="Make the title bigger">
+                                            Bigger title
+                                        </button>
+                                        <button class="quick-action-btn" data-message="Add a bullet point about trends">
+                                            Add bullet point
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generation Summary -->
+                    <div class="generation-details" id="generation-details">
+                        <h4>Generated Content Summary</h4>
+                        <div class="content-preview" id="content-preview">
+                            <!-- Generated content will be shown here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="step-actions">
+                    <button id="start-over" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i>
+                        Create Another Presentation
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Progress Indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step active" data-step="1">
+                <div class="step-circle">1</div>
+                <span>Template</span>
+            </div>
+            <div class="progress-step" data-step="2">
+                <div class="step-circle">2</div>
+                <span>Prompt</span>
+            </div>
+            <div class="progress-step" data-step="3">
+                <div class="step-circle">3</div>
+                <span>Output</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>Powered by Google's Gemini AI • Built with FastAPI</p>
+                <div class="footer-links">
+                    <a href="/docs" target="_blank">API Docs</a>
+                    <span>•</span>
+                    <a href="https://github.com" target="_blank">GitHub</a>
+                    <span>•</span>
+                    <a href="#" onclick="showAbout()">About</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Error</h3>
+                <button class="modal-close" id="close-error-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="error-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="error-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/config.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>

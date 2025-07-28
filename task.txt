@@ -1,0 +1,102 @@
+📄 Pitch Deck Generator – Product Documentation
+🔖 Product Name: VertxAI – Pitch Deck Generator & Editor
+🧠 Category: Generative AI + Document Intelligence
+👤 Target Users: Startup founders, pitch deck creators, business analysts, and fundraising consultants.
+________________________________________
+🔧 MODULE OVERVIEW
+Feature	Description
+1. Prompt-Based Pitch Generator (Basic)	Users enter a prompt. Based on it, the system generates a full PPT with pre-defined slide count.
+2. Template-Suggestive Prompt Generator (Basic)	Users enter a prompt → System suggests multiple template themes → User selects → Final PPT generated using that template
+3. Dynamic Slide Addition (Advanced)	Users can insert new slides (e.g., "Add Marketing Slide") into already generated decks by prompting
+4. Real-Time Slide Editing (Advanced)	Users can chat with the system to edit specific slides. Example: "Reduce values in the marketing slide."
+5. Upload & Modify Existing PPTs (Advanced)	Users upload a PPT → System analyzes it → Users can request: new slides, edit content, or replace specific slides using prompts
+________________________________________
+🧩 FEATURE FLOW BREAKDOWN
+1️⃣ Prompt-Based Pitch Generation
+•	Input: Text Prompt (e.g., “SaaS startup targeting remote teams”)
+•	Process:
+o	Use LLM to generate slide titles + content
+o	Use predefined styles/templates
+o	Random or structured layout (12 slides default)
+•	Output: Editable PPT or web preview
+________________________________________
+2️⃣ Template Selection Workflow
+•	Step 1: User enters prompt
+•	Step 2: Show multiple templates (e.g., Minimal, Corporate, Modern AI, etc.)
+•	Step 3: On selection, same generation as above but with chosen template design
+________________________________________
+3️⃣ Slide Addition via Prompt (Advanced)
+•	Use Case: After pitch deck is generated, user wants to add a new slide
+•	Input: “Add a marketing slide with user acquisition cost”
+•	System Actions:
+o	Understand existing slide context
+o	Fetch relevant data points
+o	Create new slide (title + content + layout)
+o	Insert at logical position or where user wants
+________________________________________
+4️⃣ Chat-Based Live Editing (ChargeGPT for Slides)
+•	Example Inputs:
+o	“Reduce the growth numbers in Slide 5”
+o	“Change customer persona image on Slide 4”
+•	System Workflow:
+o	NLP pipeline detects target slide and modification
+o	Parses PPT → makes changes using document intelligence
+o	Returns updated version
+•	Optional: Real-time edit preview in web UI
+________________________________________
+5️⃣ Upload & Modify Existing PPTs
+•	Input: User uploads .pptx file
+•	Use Cases:
+o	“Add a funding ask slide at the end”
+o	“Change design theme to minimal”
+o	“Update all market sizes with latest 2025 data”
+•	System Actions:
+o	Parse PPT using backend logic (e.g., python-pptx or unstructured.io)
+o	Apply prompt changes
+o	Return updated PPT
+________________________________________
+🏗️ TECH STACK RECOMMENDATIONS
+🔍 AI/ML Team
+•	LLM Backbone: GPT-4 / Claude / Gemini
+•	Prompt Templates:
+o	Slide Generator Prompt: “Generate 12 slides for a pitch deck on [TOPIC], including: [Problem, Solution, Market, etc.]”
+o	Slide Editor Prompt: “Given this slide content: [...], apply change: [e.g., reduce value, add bullet point, change title].”
+•	PPT Parsing Tools:
+o	python-pptx for reading/writing
+o	Unstructured.io or LangChain DocumentLoader (optional) for semantic analysis
+•	Image Generation (Optional):
+o	DALLE-3 / Stability AI for marketing visuals
+o	
+________________________________________
+🖥️ USER INTERFACE SPEC
+🌟 Basic UI Views
+•	Prompt Input Page (Option 1)
+o	Input field
+o	Slide count selector
+o	"Generate Pitch" button
+•	Template Suggestion Page (Option 2)
+o	Prompt input
+o	Grid view of templates
+o	Select → Generate
+•	Chat Editor Interface (Option 3)
+o	Upload existing PPT / Use generated one
+o	Chat-based interface (e.g., “Edit slide 3”)
+o	Preview editor and real-time update
+________________________________________
+✅ USER STORIES
+🧑‍💼 Founder
+“I just want to enter my startup idea and get a stunning deck in seconds.”
+🎯 Investor Analyst
+“I want to quickly update a founder’s deck with my feedback.”
+📥 Use Cases
+•	Fundraising prep
+•	Demo day decks
+•	VC internal review formatting
+•	Pitch review and correction
+🔐 FUTURE FEATURES
+•	Voice-to-prompt pitch editing (voice AI)
+•	Collaboration (multi-user editing)
+•	AI-generated graphs using real data
+•	Export to PDF/Google Slides
+•	Integration with CRMs (HubSpot, etc.)
+

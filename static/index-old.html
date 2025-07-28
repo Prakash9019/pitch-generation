@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Pitchdeck Generator</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Rich Text Editor Dependencies -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/quill/2.0.2/quill.snow.min.css">
+    <!-- Sortable.js for drag and drop -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <!-- Fabric.js for advanced canvas editing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <i class="fas fa-presentation"></i>
+                    AI Pitchdeck Generator
+                </h1>
+                <p class="subtitle">Transform your ideas into professional presentations</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Step 1: Template Selection -->
+            <section id="template-section" class="step-section active">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <h2>Choose a Template</h2>
+                    <p>Select a presentation template to get started</p>
+                </div>
+                
+                <div class="loading" id="templates-loading">
+                    <div class="spinner"></div>
+                    <p>Loading templates...</p>
+                </div>
+                
+                <div class="templates-grid" id="templates-grid">
+                    <!-- Templates will be loaded here -->
+                </div>
+                
+                <div class="step-actions">
+                    <button id="continue-to-prompt" class="btn btn-primary" disabled>
+                        Continue to Prompt
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 2: Prompt Input -->
+            <section id="prompt-section" class="step-section">
+                <div class="step-header">
+                    <div class="step-number">2</div>
+                    <h2>Describe Your Presentation</h2>
+                    <p>Tell us about your business or idea</p>
+                </div>
+                
+                <div class="selected-template" id="selected-template-info">
+                    <!-- Selected template info will be shown here -->
+                </div>
+                
+                <div class="prompt-container">
+                    <div class="form-group">
+                        <label for="prompt-input">Your Business Description</label>
+                        <div class="prompt-help">
+                            <details>
+                                <summary>💡 Need help? Click for example prompts</summary>
+                                <div class="example-prompts">
+                                    <div class="example-prompt" onclick="fillExamplePrompt(0)">
+                                        <strong>Tech Startup:</strong> "We're developing an AI-powered fitness app that creates personalized workout plans..."
+                                    </div>
+                                    <div class="example-prompt" onclick="fillExamplePrompt(1)">
+                                        <strong>E-commerce Business:</strong> "Our company sells sustainable home products through an online marketplace..."
+                                    </div>
+                                    <div class="example-prompt" onclick="fillExamplePrompt(2)">
+                                        <strong>Service Business:</strong> "We provide digital marketing consulting services for small businesses..."
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                        <textarea 
+                            id="prompt-input" 
+                            placeholder="Describe your business, product, or idea. Include details about your target market, value proposition, business model, and any other relevant information..."
+                            rows="8"
+                        ></textarea>
+                        <div class="char-counter">
+                            <span id="char-count">0</span> characters
+                        </div>
+                    </div>
+                    
+                    <div class="placeholders-preview" id="placeholders-preview">
+                        <h3>Template Placeholders</h3>
+                        <div class="placeholders-list" id="placeholders-list">
+                            <!-- Placeholders will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="step-actions">
+                    <button id="back-to-templates" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Templates
+                    </button>
+                    <button id="generate-content" class="btn btn-primary">
+                        Generate Presentation
+                        <i class="fas fa-magic"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 3: Generation & Output -->
+            <section id="output-section" class="step-section">
+                <div class="step-header">
+                    <div class="step-number">3</div>
+                    <h2>Your Presentation is Ready!</h2>
+                    <p>Review and access your generated presentation</p>
+                </div>
+                
+                <div class="generation-status" id="generation-status">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Generating your presentation...</p>
+                        <div class="progress-text">This may take a few moments</div>
+                    </div>
+                </div>
+                
+                <div class="output-content" id="output-content" style="display: none;">
+                    <!-- Presentation Controls -->
+                    <div class="presentation-controls">
+                        <div class="control-group">
+                            <button id="view-mode-btn" class="btn btn-primary active">
+                                <i class="fas fa-eye"></i>
+                                View Mode
+                            </button>
+                            <button id="edit-mode-btn" class="btn btn-secondary">
+                                <i class="fas fa-edit"></i>
+                                Edit Mode
+                            </button>
+                        </div>
+                        <div class="control-group">
+                            <button id="save-presentation" class="btn btn-primary" style="display: none;">
+                                <i class="fas fa-save"></i>
+                                Save Changes
+                            </button>
+                            <a id="export-presentation" href="#" target="_blank" class="btn btn-secondary">
+                                <i class="fas fa-external-link-alt"></i>
+                                Open in Google Slides
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Presentation Viewer Modes -->
+                    <div class="presentation-viewer-modes" id="presentation-viewer-modes" style="display: none;">
+                        <button id="slides-mode-btn" class="viewer-mode-btn active">
+                            <i class="fas fa-images"></i>
+                            Visual Slides
+                        </button>
+                        <button id="text-mode-btn" class="viewer-mode-btn">
+                            <i class="fas fa-align-left"></i>
+                            Text Content
+                        </button>
+                        <button id="fullscreen-mode-btn" class="viewer-mode-btn">
+                            <i class="fas fa-expand"></i>
+                            Full Presentation
+                        </button>
+                    </div>
+
+                    <!-- Presentation Viewer/Editor -->
+                    <div class="presentation-container">
+                        <div class="slides-sidebar">
+                            <h4>Slides (<span id="slide-count">0</span>)</h4>
+                            <div id="slides-thumbnails" class="slides-thumbnails">
+                                <!-- Slide thumbnails will be generated here -->
+                            </div>
+                        </div>
+                        
+                        <div class="slide-editor">
+                            <!-- Enhanced Editing Toolbar (shown in edit mode) -->
+                            <div id="editing-toolbar" class="editing-toolbar" style="display: none;">
+                                <div class="toolbar-section">
+                                    <label>Format:</label>
+                                    <div class="format-controls">
+                                        <button class="toolbar-btn" onclick="formatText('bold')" title="Bold">
+                                            <i class="fas fa-bold"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="formatText('italic')" title="Italic">
+                                            <i class="fas fa-italic"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="formatText('underline')" title="Underline">
+                                            <i class="fas fa-underline"></i>
+                                        </button>
+                                        <div class="toolbar-divider"></div>
+                                        <select id="font-size-select" onchange="changeFontSize(this.value)">
+                                            <option value="12">12pt</option>
+                                            <option value="14">14pt</option>
+                                            <option value="16">16pt</option>
+                                            <option value="18" selected>18pt</option>
+                                            <option value="24">24pt</option>
+                                            <option value="32">32pt</option>
+                                            <option value="48">48pt</option>
+                                        </select>
+                                        <input type="color" id="text-color" onchange="changeTextColor(this.value)" title="Text Color">
+                                        <input type="color" id="background-color" onchange="changeBackgroundColor(this.value)" title="Background Color">
+                                    </div>
+                                </div>
+                                
+                                <div class="toolbar-section">
+                                    <label>Insert:</label>
+                                    <div class="insert-controls">
+                                        <button class="toolbar-btn" onclick="addTextBox()" title="Add Text Box">
+                                            <i class="fas fa-font"></i> Text
+                                        </button>
+                                        <button class="toolbar-btn" onclick="openImageUpload()" title="Insert Image">
+                                            <i class="fas fa-image"></i> Image
+                                        </button>
+                                        <button class="toolbar-btn" onclick="addShape('rectangle')" title="Add Rectangle">
+                                            <i class="fas fa-square"></i> Shape
+                                        </button>
+                                        <button class="toolbar-btn" onclick="addChart()" title="Add Chart">
+                                            <i class="fas fa-chart-bar"></i> Chart
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="toolbar-section">
+                                    <label>Align:</label>
+                                    <div class="align-controls">
+                                        <button class="toolbar-btn" onclick="alignElements('left')" title="Align Left">
+                                            <i class="fas fa-align-left"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="alignElements('center')" title="Align Center">
+                                            <i class="fas fa-align-center"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="alignElements('right')" title="Align Right">
+                                            <i class="fas fa-align-right"></i>
+                                        </button>
+                                        <div class="toolbar-divider"></div>
+                                        <button class="toolbar-btn" onclick="distributeElements()" title="Distribute Evenly">
+                                            <i class="fas fa-grip-lines"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="toolbar-section">
+                                    <label>Layout:</label>
+                                    <div class="layout-controls">
+                                        <button class="toolbar-btn" onclick="bringToFront()" title="Bring to Front">
+                                            <i class="fas fa-layer-group"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="sendToBack()" title="Send to Back">
+                                            <i class="fas fa-level-down-alt"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="duplicateElement()" title="Duplicate">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                        <button class="toolbar-btn" onclick="deleteSelected()" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="slide-canvas-container">
+                                <!-- Visual Slide Canvas (enhanced for editing) -->
+                                <div id="slide-canvas-wrapper" class="slide-canvas-wrapper">
+                                    <canvas id="slide-canvas" class="slide-canvas"></canvas>
+                                    <div id="current-slide" class="current-slide">
+                                        <div class="slide-placeholder">
+                                            <i class="fas fa-presentation"></i>
+                                            <p>Select a slide to view</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Properties Panel (shown when element is selected) -->
+                                <div id="properties-panel" class="properties-panel" style="display: none;">
+                                    <h4>Element Properties</h4>
+                                    <div id="element-properties" class="element-properties">
+                                        <!-- Dynamic properties will be shown here -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Enhanced Edit Panel (shown in edit mode) -->
+                            <div id="edit-panel" class="edit-panel" style="display: none;">
+                                <div class="edit-tabs">
+                                    <button class="tab-btn active" onclick="showEditTab('content')">Content</button>
+                                    <button class="tab-btn" onclick="showEditTab('design')">Design</button>
+                                    <button class="tab-btn" onclick="showEditTab('animation')">Animation</button>
+                                </div>
+                                
+                                <div id="content-tab" class="edit-tab active">
+                                    <h4>Edit Slide Content</h4>
+                                    <div id="editable-elements" class="editable-elements">
+                                        <!-- Editable elements will be shown here -->
+                                    </div>
+                                </div>
+                                
+                                <div id="design-tab" class="edit-tab">
+                                    <h4>Slide Design</h4>
+                                    <div class="design-controls">
+                                        <div class="control-group">
+                                            <label>Background:</label>
+                                            <input type="color" id="slide-bg-color" onchange="changeSlideBackground(this.value)">
+                                            <button class="btn btn-sm" onclick="uploadSlideBackground()">Upload Image</button>
+                                        </div>
+                                        <div class="control-group">
+                                            <label>Theme:</label>
+                                            <select id="theme-select" onchange="applyTheme(this.value)">
+                                                <option value="default">Default</option>
+                                                <option value="corporate">Corporate</option>
+                                                <option value="creative">Creative</option>
+                                                <option value="minimal">Minimal</option>
+                                                <option value="dark">Dark</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="animation-tab" class="edit-tab">
+                                    <h4>Animations</h4>
+                                    <div class="animation-controls">
+                                        <div class="control-group">
+                                            <label>Entry Animation:</label>
+                                            <select id="entry-animation" onchange="setElementAnimation('entry', this.value)">
+                                                <option value="">None</option>
+                                                <option value="fadeIn">Fade In</option>
+                                                <option value="slideInLeft">Slide In Left</option>
+                                                <option value="slideInRight">Slide In Right</option>
+                                                <option value="slideInUp">Slide In Up</option>
+                                                <option value="slideInDown">Slide In Down</option>
+                                                <option value="zoomIn">Zoom In</option>
+                                            </select>
+                                        </div>
+                                        <div class="control-group">
+                                            <label>Animation Delay:</label>
+                                            <input type="range" id="animation-delay" min="0" max="5000" step="100" value="0" onchange="setAnimationDelay(this.value)">
+                                            <span id="delay-value">0ms</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generation Summary -->
+                    <div class="generation-details" id="generation-details">
+                        <h4>Generated Content Summary</h4>
+                        <div class="content-preview" id="content-preview">
+                            <!-- Generated content will be shown here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="step-actions">
+                    <button id="start-over" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i>
+                        Create Another Presentation
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Progress Indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step active" data-step="1">
+                <div class="step-circle">1</div>
+                <span>Template</span>
+            </div>
+            <div class="progress-step" data-step="2">
+                <div class="step-circle">2</div>
+                <span>Prompt</span>
+            </div>
+            <div class="progress-step" data-step="3">
+                <div class="step-circle">3</div>
+                <span>Output</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>Powered by Google's Gemini AI • Built with FastAPI</p>
+                <div class="footer-links">
+                    <a href="/docs" target="_blank">API Docs</a>
+                    <span>•</span>
+                    <a href="https://github.com" target="_blank">GitHub</a>
+                    <span>•</span>
+                    <a href="#" onclick="showAbout()">About</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Error</h3>
+                <button class="modal-close" id="close-error-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="error-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="error-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Upload Modal -->
+    <div id="image-upload-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Insert Image</h3>
+                <button class="modal-close" id="close-image-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-options">
+                    <div class="upload-option">
+                        <label for="image-file-input" class="upload-label">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>Upload from Computer</span>
+                        </label>
+                        <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="upload-option">
+                        <label>Image URL:</label>
+                        <input type="url" id="image-url-input" placeholder="https://example.com/image.jpg">
+                        <button class="btn btn-sm btn-primary" onclick="insertImageFromUrl()">Insert</button>
+                    </div>
+                </div>
+                <div id="image-preview" class="image-preview" style="display: none;">
+                    <img id="preview-img" src="" alt="Preview">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-image-btn">Cancel</button>
+                <button class="btn btn-primary" id="insert-image-btn" disabled>Insert Image</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shape Selector Modal -->
+    <div id="shape-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Insert Shape</h3>
+                <button class="modal-close" id="close-shape-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="shapes-grid">
+                    <div class="shape-option" onclick="insertShape('rectangle')">
+                        <i class="fas fa-square"></i>
+                        <span>Rectangle</span>
+                    </div>
+                    <div class="shape-option" onclick="insertShape('circle')">
+                        <i class="fas fa-circle"></i>
+                        <span>Circle</span>
+                    </div>
+                    <div class="shape-option" onclick="insertShape('triangle')">
+                        <i class="fas fa-caret-up"></i>
+                        <span>Triangle</span>
+                    </div>
+                    <div class="shape-option" onclick="insertShape('arrow')">
+                        <i class="fas fa-arrow-right"></i>
+                        <span>Arrow</span>
+                    </div>
+                    <div class="shape-option" onclick="insertShape('star')">
+                        <i class="fas fa-star"></i>
+                        <span>Star</span>
+                    </div>
+                    <div class="shape-option" onclick="insertShape('line')">
+                        <i class="fas fa-minus"></i>
+                        <span>Line</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Builder Modal -->
+    <div id="chart-modal" class="modal">
+        <div class="modal-content chart-modal-content">
+            <div class="modal-header">
+                <h3>Insert Chart</h3>
+                <button class="modal-close" id="close-chart-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="chart-options">
+                    <div class="chart-type-selection">
+                        <h4>Chart Type</h4>
+                        <div class="chart-types">
+                            <div class="chart-type active" data-type="bar" onclick="selectChartType('bar')">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>Bar Chart</span>
+                            </div>
+                            <div class="chart-type" data-type="line" onclick="selectChartType('line')">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Line Chart</span>
+                            </div>
+                            <div class="chart-type" data-type="pie" onclick="selectChartType('pie')">
+                                <i class="fas fa-chart-pie"></i>
+                                <span>Pie Chart</span>
+                            </div>
+                            <div class="chart-type" data-type="doughnut" onclick="selectChartType('doughnut')">
+                                <i class="fas fa-circle"></i>
+                                <span>Doughnut</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-data-input">
+                        <h4>Chart Data</h4>
+                        <textarea id="chart-data" rows="6" placeholder="Enter data in CSV format:&#10;Label,Value&#10;Q1,100&#10;Q2,150&#10;Q3,200&#10;Q4,175"></textarea>
+                    </div>
+                    <div class="chart-preview">
+                        <canvas id="chart-preview-canvas" width="400" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-chart-btn">Cancel</button>
+                <button class="btn btn-primary" id="insert-chart-btn">Insert Chart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rich Text Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/2.0.2/quill.min.js"></script>
+    <!-- Chart.js for charts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+    <!-- Core application scripts -->
+    <script src="/static/config.js"></script>
+    <script src="/static/script.js"></script>
+    <!-- Enhanced editing functionality -->
+    <script src="/static/slide-editor.js"></script>
+</body>
+</html>
