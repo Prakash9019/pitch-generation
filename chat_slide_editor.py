@@ -8,7 +8,7 @@ import re
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime
-from pantic import BaseModel, Field
+from pydantic import BaseModel, Field
 
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI

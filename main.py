@@ -46,7 +46,14 @@ app.add_middleware(
 )
 
 # Initialize slides manager
-slides_manager = SlidesManager()
+# Initialize slides manager
+slides_manager = None
+try:
+    credentials = get_credentials(None)
+    slides_manager = SlidesManager(credentials=credentials)
+except Exception as e:
+    print(f"WARNING: Failed to initialize SlidesManager with credentials: {e}")
+
 
 # Initialize AI content generator
 api_key = os.environ.get("GOOGLE_API_KEY")
@@ -259,7 +266,11 @@ def generate_content(request: ContentGenerationRequest, background_tasks: Backgr
             
             # Generate content for the placeholders with thread_id for memory
             result = ai_generator.generate(request.prompt, placeholders, thread_id=request.thread_id)
-            
+            # After generation
+            print("\n===== AI MODEL RAW OUTPUT =====")
+            print(result)
+            print("================================\n")
+
             # Ensure result has the expected structure
             if not isinstance(result, dict):
                 result = {"results": {}, "errors": [f"Unexpected result type: {type(result)}"]}
@@ -327,7 +338,7 @@ def generate_content(request: ContentGenerationRequest, background_tasks: Backgr
             if not hex_color_success:
                 result["errors"].append("Failed to update colors in the presentation")
 
-        
+
         # Get the URLs for the generated presentation
         presentation_edit_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/edit"
         presentation_view_url = f"https://docs.google.com/presentation/d/{generated_presentation_id}/view"
@@ -336,12 +347,16 @@ def generate_content(request: ContentGenerationRequest, background_tasks: Backgr
         result["presentation_id"] = generated_presentation_id
         result["presentation_url"] = presentation_edit_url
         result["presentation_view_url"] = presentation_view_url
-            
+        print("\n===== AI MODEL RAW OUTPUT =====")
+        print(result)
+        print("================================\n")
         return ContentGenerationResponse(**result)
     except Exception as e:
         import traceback
         error_detail = f"Failed to generate content: {str(e)}\n{traceback.format_exc()}"
         raise HTTPException(status_code=500, detail=error_detail)
+
+
 
 @app.get("/presentations/{presentation_id}/slides", response_model=PresentationData)
 async def get_presentation_slides(presentation_id: str):
@@ -956,3 +971,5 @@ async def get_chat_help():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+

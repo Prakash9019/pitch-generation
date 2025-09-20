@@ -1,3 +1,4 @@
+# demo_data.py
 """
 Demo data for testing the AI Pitchdeck Generator frontend
 This file provides sample data when Google Drive templates are not available
@@ -10,7 +11,7 @@ DEMO_TEMPLATES = [
         "thumbnailLink": None
     },
     {
-        "id": "demo-template-2", 
+        "id": "demo-template-2",
         "name": "Business Plan Presentation",
         "thumbnailLink": None
     },
@@ -22,7 +23,7 @@ DEMO_TEMPLATES = [
 ]
 
 DEMO_PLACEHOLDERS = {
-    "demo-template-1": [
+    "demo-template-1": [  # Complete Startup Pitch Deck template with all required fields
         {
             "name": "company_name",
             "instruction": "Provide the name of your company or startup",
@@ -30,6 +31,14 @@ DEMO_PLACEHOLDERS = {
             "element_type": "text",
             "min_words": 1,
             "max_words": 3
+        },
+        {
+            "name": "tagline",
+            "instruction": "A compelling tagline that captures your company's essence",
+            "slide_index": 1,
+            "element_type": "text",
+            "min_words": 5,
+            "max_words": 10
         },
         {
             "name": "problem_statement",
@@ -62,6 +71,46 @@ DEMO_PLACEHOLDERS = {
             "element_type": "text",
             "min_words": 60,
             "max_words": 120
+        },
+        {
+            "name": "key_features",
+            "instruction": "List the key features and benefits of your product/service {{40,80}}",
+            "slide_index": 6,
+            "element_type": "text",
+            "min_words": 40,
+            "max_words": 80
+        },
+        {
+            "name": "market_analysis",
+            "instruction": "Analyze your market size and opportunities {{50,100}}",
+            "slide_index": 7,
+            "element_type": "text",
+            "min_words": 50,
+            "max_words": 100
+        },
+        {
+            "name": "competitive_advantage",
+            "instruction": "Explain what makes you different from competitors {{40,80}}",
+            "slide_index": 8,
+            "element_type": "text",
+            "min_words": 40,
+            "max_words": 80
+        },
+        {
+            "name": "team_description",
+            "instruction": "Describe your team's expertise and background {{30,60}}",
+            "slide_index": 9,
+            "element_type": "text",
+            "min_words": 30,
+            "max_words": 60
+        },
+        {
+            "name": "funding_ask",
+            "instruction": "Specify your funding requirements and use of funds {{30,60}}",
+            "slide_index": 10,
+            "element_type": "text",
+            "min_words": 30,
+            "max_words": 60
         }
     ],
     "demo-template-2": [
