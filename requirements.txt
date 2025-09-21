@@ -13,4 +13,3 @@ langchain-google-genai
 pydantic
 python-jose
 python-dotenv
-pantic
