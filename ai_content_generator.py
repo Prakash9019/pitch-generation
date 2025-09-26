@@ -52,7 +52,8 @@ def select_placeholders(state: WorkflowState) -> WorkflowState:
 def generate_slide_content(state: WorkflowState) -> WorkflowState:
     """Generate content for each slide's placeholders."""
     # Try a different model that might be better at following instructions
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")  # Use pro instead of flash
+    # llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")  # Use pro instead of flash
+    model = genai.GenerativeModel('gemini-1.5-pro')  # Correct API
     generated_content = {}
     errors = []
     
@@ -153,7 +154,7 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                 
                 # Generate content for this specific placeholder
                 start_time = time.time()
-                response = placeholder_prompt | llm | StrOutputParser()
+                response = placeholder_prompt | model | StrOutputParser()
                 content = response.invoke({})
                 content = content.strip()
                 
@@ -223,7 +224,7 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                     ])
                     
                     # Try again
-                    retry_response = retry_prompt | llm | StrOutputParser()
+                    retry_response = retry_prompt | model | StrOutputParser()
                     content = retry_response.invoke({}).strip()
                     word_count = len(content.split())
                     
@@ -247,7 +248,7 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                                 HumanMessage(content=fix_message)
                             ])
                             
-                            fix_response = fix_prompt | llm | StrOutputParser()
+                            fix_response = fix_prompt | model | StrOutputParser()
                             content = fix_response.invoke({}).strip()
                             word_count = len(content.split())
                     

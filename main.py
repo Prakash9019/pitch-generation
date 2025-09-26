@@ -357,6 +357,18 @@ def generate_content(request: ContentGenerationRequest, background_tasks: Backgr
         raise HTTPException(status_code=500, detail=error_detail)
 
 
+@app.get("/download/{presentation_id}")
+def download_presentation(presentation_id: str):
+    """Download the generated PowerPoint presentation"""
+    file_path = os.path.join("static", f"{presentation_id}.pptx")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Presentation not found")
+    return FileResponse(
+        file_path, 
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename=f"{presentation_id}.pptx"
+    )
+
 
 @app.get("/presentations/{presentation_id}/slides", response_model=PresentationData)
 async def get_presentation_slides(presentation_id: str):
