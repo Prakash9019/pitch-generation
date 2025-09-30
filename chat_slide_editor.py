@@ -63,7 +63,7 @@ class ChatSlideEditor:
             raise ValueError("A Google API key is required to initialize the ChatSlideEditor.")
 
         genai.configure(api_key=self.api_key)
-        self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0.1)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.1)
         
         # The SlidesManager must be provided to interact with the Google Slides API.
         if slides_manager is None:

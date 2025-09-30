@@ -21,7 +21,9 @@ from placeholder_selector import Placeholder, PlaceholderGroup, PlaceholderSelec
 
 # Configure Google Generative AI
 api_key = os.environ.get("GOOGLE_API_KEY")
-genai.configure(api_key=api_key)
+print("API Key:", api_key)  # Debugging line to check if the API key is being read
+if api_key:
+    genai.configure(api_key=api_key)
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
@@ -51,9 +53,11 @@ def select_placeholders(state: WorkflowState) -> WorkflowState:
 
 def generate_slide_content(state: WorkflowState) -> WorkflowState:
     """Generate content for each slide's placeholders."""
-    # Try a different model that might be better at following instructions
-    # llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro")  # Use pro instead of flash
-    model = genai.GenerativeModel('gemini-1.5-pro')  # Correct API
+    # --- FIX START ---
+    # Use the LangChain compatible model wrapper, which is a "Runnable"
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro")
+    # --- FIX END ---
+    
     generated_content = {}
     errors = []
     
@@ -152,9 +156,11 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                     HumanMessage(content=human_message)
                 ])
                 
-                # Generate content for this specific placeholder
+                # --- FIX START ---
+                # Generate content for this specific placeholder using the correct 'llm' object
                 start_time = time.time()
-                response = placeholder_prompt | model | StrOutputParser()
+                response = placeholder_prompt | llm | StrOutputParser()
+                # --- FIX END ---
                 content = response.invoke({})
                 content = content.strip()
                 
@@ -223,8 +229,10 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                         HumanMessage(content=retry_message)
                     ])
                     
-                    # Try again
-                    retry_response = retry_prompt | model | StrOutputParser()
+                    # --- FIX START ---
+                    # Try again using the correct 'llm' object
+                    retry_response = retry_prompt | llm | StrOutputParser()
+                    # --- FIX END ---
                     content = retry_response.invoke({}).strip()
                     word_count = len(content.split())
                     
@@ -248,7 +256,9 @@ def generate_slide_content(state: WorkflowState) -> WorkflowState:
                                 HumanMessage(content=fix_message)
                             ])
                             
-                            fix_response = fix_prompt | model | StrOutputParser()
+                            # --- FIX START ---
+                            fix_response = fix_prompt | llm | StrOutputParser()
+                            # --- FIX END ---
                             content = fix_response.invoke({}).strip()
                             word_count = len(content.split())
                     

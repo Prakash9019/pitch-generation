@@ -2,7 +2,6 @@ import json
 import os
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Response, Cookie

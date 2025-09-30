@@ -4,11 +4,10 @@ google-auth
 google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
+google-ai-generativelanguage==0.6.15
 langchain
 langchain-core
 langgraph
-google-ai-generativelanguage==0.6.15
-google-generativeai
 langchain-google-genai
 pydantic
 python-jose
